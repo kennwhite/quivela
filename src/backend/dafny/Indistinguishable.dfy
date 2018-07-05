@@ -33,6 +33,13 @@ lemma {:induction l1, l2} EqualKeys_AssocGet<T(==,!new), U>(l1: List<Pair<T, U>>
 
 }
 
+predicate {:induction false} ImmutablesUnchanged(objs: ObjList, objs': ObjList) {
+    forall k, l ::
+        (AssocGet(objs, k).Some? && AssocGet(objs', k).Some? && AssocGet(AssocGet(objs, k).val.locals, l).Some? &&
+         AssocGet(AssocGet(objs', k).val.locals, l).Some? && l in AssocGet(objs, k).val.immutables) ==>
+          AssocGet(AssocGet(objs, k).val.locals, l).val == AssocGet(AssocGet(objs', k).val.locals, l).val
+}
+
 predicate {:induction false} HavocPrecondition(
     ctx1: Context, ctx2: Context, 
     addr1: Value, addr2: Value, 
@@ -47,6 +54,14 @@ predicate {:induction false} HavocPrecondition(
     var ctx2' := ctx2.(objs := objs2);
     EqualKeys(ctx1.objs, objs1) &&
     EqualKeys(ctx2.objs, objs2) &&
+    (forall k: Addr ::
+        AssocGet(ctx1.objs, k).Some? && AssocGet(objs1, k).Some? ==>
+        AssocGet(ctx1.objs, k).val.immutables == AssocGet(objs1, k).val.immutables) &&
+    (forall k: Addr ::
+        AssocGet(ctx2.objs, k).Some? && AssocGet(objs2, k).Some? ==>
+        AssocGet(ctx2.objs, k).val.immutables == AssocGet(objs2, k).val.immutables) &&
+    ImmutablesUnchanged(ctx1.objs, objs1) &&
+    ImmutablesUnchanged(ctx2.objs, objs2) &&
     (forall k: Addr :: AssocGet(ctx1.objs, k).Some? && AssocGet(objs1, k).Some? ==> EqualKeys(AssocGet(ctx1.objs, k).val.locals, AssocGet(objs1, k).val.locals)) &&
     (forall k: Addr :: AssocGet(ctx2.objs, k).Some? && AssocGet(objs2, k).Some? ==> EqualKeys(AssocGet(ctx2.objs, k).val.locals, AssocGet(objs2, k).val.locals)) &&
     (forall k, l :: AssocGet(objs1, k).Some? && AssocGet(AssocGet(objs1, k).val.locals, l).Some? ==> AssocGet(AssocGet(objs1, k).val.locals, l).val != Nil && (AssocGet(AssocGet(objs1, k).val.locals, l).val.Ref? ==> AssocGet(AssocGet(objs1, k).val.locals, l).val.addr < addr1.addr)) &&
