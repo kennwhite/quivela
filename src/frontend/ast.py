@@ -228,7 +228,8 @@ class InitNode(AST):
         self.val = val
         self.immutable = immutable
     def to_dafny(self) -> str:
-        return 'Init("{}", {})'.format(self.name, self.val.to_dafny())
+        return 'Init("{}", {}, {})'.format(self.name, self.val.to_dafny(),
+                                           "true" if self.immutable else false)
     def to_sexp(self) -> str:
         return "(Init '{} {} {})".format(self.name, self.val.to_sexp(), "#t" if self.immutable else "#f")
     def __str__(self) -> str:

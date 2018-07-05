@@ -46,5 +46,5 @@ function method RewriteExprLocals(locals: List<Init>, e1: Expr, e2: Expr): List<
 {
     if locals.LNil? then LNil() else
     var l := locals.car;
-    Cons(Init(l.name, RewriteExpr(l.val, e1, e2)), RewriteExprLocals(locals.cdr, e1, e2))
+    Cons(Init(l.name, RewriteExpr(l.val, e1, e2), l.immutable), RewriteExprLocals(locals.cdr, e1, e2))
 }

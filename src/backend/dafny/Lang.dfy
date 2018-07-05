@@ -14,7 +14,7 @@
 datatype Value = Int(val: int) | Tuple(elts:List<Value>) | Map(vals: List<Pair<Value, Value>>) | Ref(addr: Addr) | Nil() | Error()
 
 type Var = string
-datatype Init = Init(name: Var, val: Expr)
+datatype Init = Init(name: Var, val: Expr, immutable: bool)
 
 // lists
 datatype List<T> = Cons(car: T, cdr: List<T>) | LNil
@@ -87,7 +87,7 @@ type MethodMap = List<Pair<Addr, MethodList>>
 // objs: global memory
 // ths: current object hosting a method call
 datatype Context = Context(scope: Scope, objs: ObjList, methods: MethodMap, ths: Addr, nextAddr: Addr)
-datatype Object = Object(locals: Env)
+datatype Object = Object(locals: Env, immutables: set<Var>)
 datatype Method = Method(name: Var, args: List<Var>, body: Expr)
 
 // Get a fresh new address
@@ -123,6 +123,7 @@ function method InitLocals(locals: List<Init>, ctx: Context, fuel: Fuel, acc: En
     var l := locals.car;
     var oldScope := ctx.scope;
     var ctx_ := ctx.(scope := Append(acc, oldScope));
+
     if l.val == EConst(Nil()) then
         var (ret, ctx') := Eval_Var(EVar(l.name), ctx_, fuel);
         InitLocals(locals.cdr, ctx'.(scope := oldScope), fuel, AssocSet(acc, l.name, ret))
@@ -223,6 +224,12 @@ function method Eval_CVar(e: Expr, ctx: Context, fuel: Fuel): (Value, Context)
     else (Error(), ctx')
 }
 
+function method Find_Immutables(inits: List<Init>): set<Var> {
+    match inits
+    case LNil => {}
+    case Cons(init, inits') => (if init.immutable then {init.name} else {}) + Find_Immutables(inits')
+}
+
 function method Eval_New(e: Expr, ctx: Context, fuel: Fuel): (Value, Context)
     requires e.ENew?
     decreases fuel, 3
@@ -233,7 +240,8 @@ function method Eval_New(e: Expr, ctx: Context, fuel: Fuel): (Value, Context)
     var oldThs := ctx'.ths;
     var oldScope := ctx'.scope;
     var addr := ctx'.nextAddr;
-    var ctx'' := ctx'.(objs := AssocSet(ctx'.objs, addr, Object(vlocals)), methods := AssocSet(ctx'.methods, addr, LNil), nextAddr := ctx'.nextAddr + 1, ths := addr);
+    var immuts := Find_Immutables(e.locals);
+    var ctx'' := ctx'.(objs := AssocSet(ctx'.objs, addr, Object(vlocals, immuts)), methods := AssocSet(ctx'.methods, addr, LNil), nextAddr := ctx'.nextAddr + 1, ths := addr);
     var (ret, ctx''') := Eval(e.body, ctx'', fuel);
     (Ref(addr), ctx'''.(ths := oldThs, scope := oldScope))
 }
@@ -262,15 +270,15 @@ function method Eval_Assign(e: Expr, ctx: Context, fuel: Fuel): (Value, Context)
             (erhs, ctx'.(scope := AssocSet(ctx'.scope, lhs.name, erhs)))
         else if ValidRef(ctx.ths, ctx) && AssocGet(AssocGet(ctx.objs, ctx.ths).val.locals, lhs.name).Some? then  // already a field
             var me := AssocGet(ctx.objs, ctx.ths).val;
-            (erhs, ctx'.(objs := AssocSet(ctx'.objs, ctx.ths, Object(AssocSet(me.locals, lhs.name, erhs)))))
+            (erhs, ctx'.(objs := AssocSet(ctx'.objs, ctx.ths, Object(AssocSet(me.locals, lhs.name, erhs), {}))))
         else if ValidRef(0, ctx) && AssocGet(AssocGet(ctx.objs, 0).val.locals, lhs.name).Some? then  // already a global
             var me := AssocGet(ctx.objs, 0).val;
-            (erhs, ctx'.(objs := AssocSet(ctx'.objs, 0, Object(AssocSet(me.locals, lhs.name, erhs)))))
+            (erhs, ctx'.(objs := AssocSet(ctx'.objs, 0, Object(AssocSet(me.locals, lhs.name, erhs), {}))))
         else if ValidRef(ctx.ths, ctx) && ctx.ths != 0 then  // inside a method call, restrict the scope
             (erhs, ctx'.(scope := AssocSet(ctx'.scope, lhs.name, erhs)))
         else if ValidRef(0, ctx) then  // outside a method call, everything is global
             var me := AssocGet(ctx.objs, 0).val;
-            (erhs, ctx'.(objs := AssocSet(ctx'.objs, 0, Object(AssocSet(me.locals, lhs.name, erhs)))))
+            (erhs, ctx'.(objs := AssocSet(ctx'.objs, 0, Object(AssocSet(me.locals, lhs.name, erhs), {}))))
         else (Error(), ctx')
     // compound var on the LHS
     else if lhs.ECVar? then
@@ -284,10 +292,10 @@ function method Eval_Assign(e: Expr, ctx: Context, fuel: Fuel): (Value, Context)
             var base := AssocGet(ctx'''.objs, eobj.addr).val;
             // are we setting an index in a map?
             if eidx.Nil? then
-                (erhs, ctx'''.(objs := AssocSet(ctx'''.objs, eobj.addr, Object(AssocSet(base.locals, lhs.name, erhs)))))
+                (erhs, ctx'''.(objs := AssocSet(ctx'''.objs, eobj.addr, Object(AssocSet(base.locals, lhs.name, erhs), {}))))
             // we might need to convert the current value to a map
             else var baseMap := if AssocGet(base.locals, lhs.name).Some? && AssocGet(base.locals, lhs.name).val.Map? then AssocGet(base.locals, lhs.name).val.vals else LNil;
-                 var newObj := Object(AssocSet(base.locals, lhs.name, Map(Cons(Pair(eidx, erhs), baseMap))));
+                 var newObj := Object(AssocSet(base.locals, lhs.name, Map(Cons(Pair(eidx, erhs), baseMap))), {});
                  (erhs, ctx'''.(objs := AssocSet(ctx'''.objs, eobj.addr, newObj)))
         else if eobj.Nil? then // LHS is not a ref
             if eidx.Nil? then
@@ -295,10 +303,10 @@ function method Eval_Assign(e: Expr, ctx: Context, fuel: Fuel): (Value, Context)
                     (erhs, ctx'''.(scope := AssocSet(ctx'''.scope, lhs.name, erhs)))
                 else if ValidRef(ctx'''.ths, ctx''') && AssocGet(AssocGet(ctx'''.objs, ctx'''.ths).val.locals, lhs.name).Some? then  // already a field
                     var me := AssocGet(ctx'''.objs, ctx'''.ths).val;
-                    (erhs, ctx'''.(objs := AssocSet(ctx'''.objs, ctx'''.ths, Object(AssocSet(me.locals, lhs.name, erhs)))))
+                    (erhs, ctx'''.(objs := AssocSet(ctx'''.objs, ctx'''.ths, Object(AssocSet(me.locals, lhs.name, erhs), {}))))
                 else if ValidRef(0, ctx''') && AssocGet(AssocGet(ctx'''.objs, 0).val.locals, lhs.name).Some? then  // already a global
                     var me := AssocGet(ctx'''.objs, 0).val;
-                    (erhs, ctx'''.(objs := AssocSet(ctx'''.objs, 0, Object(AssocSet(me.locals, lhs.name, erhs)))))
+                    (erhs, ctx'''.(objs := AssocSet(ctx'''.objs, 0, Object(AssocSet(me.locals, lhs.name, erhs), {}))))
                 else if ValidRef(ctx'''.ths, ctx''') then  // inside a method call, restrict the scope
                     (erhs, ctx'''.(scope := AssocSet(ctx'''.scope, lhs.name, erhs)))
                 else (Error(), ctx''')
@@ -309,12 +317,12 @@ function method Eval_Assign(e: Expr, ctx: Context, fuel: Fuel): (Value, Context)
                 var me := AssocGet(ctx'''.objs, ctx'''.ths).val;
                 var baseMap := if AssocGet(me.locals, lhs.name).val.Map? then AssocGet(me.locals, lhs.name).val.vals else LNil;
                 var newMap := Map(Cons(Pair(eidx, erhs), baseMap));
-                (erhs, ctx'''.(objs := AssocSet(ctx'''.objs, ctx'''.ths, Object(AssocSet(me.locals, lhs.name, newMap)))))
+                (erhs, ctx'''.(objs := AssocSet(ctx'''.objs, ctx'''.ths, Object(AssocSet(me.locals, lhs.name, newMap), {}))))
             else if ValidRef(0, ctx''') && AssocGet(AssocGet(ctx'''.objs, 0).val.locals, lhs.name).Some? then  // already a global
                 var me := AssocGet(ctx'''.objs, 0).val;
                 var baseMap := if AssocGet(me.locals, lhs.name).val.Map? then AssocGet(me.locals, lhs.name).val.vals else LNil;
                 var newMap := Map(Cons(Pair(eidx, erhs), baseMap));
-                (erhs, ctx'''.(objs := AssocSet(ctx'''.objs, 0, Object(AssocSet(me.locals, lhs.name, newMap)))))
+                (erhs, ctx'''.(objs := AssocSet(ctx'''.objs, 0, Object(AssocSet(me.locals, lhs.name, newMap), {}))))
             // note: no default case; the variable must already exist to do a map assignment to it
             else (Error(), ctx''')  // the variable doesn't exist in any reachable scope, so we can't update an index at it
         else (Error(), ctx''')  // LHS was not valid  
@@ -466,7 +474,7 @@ function method Eval(e: Expr, ctx: Context, fuel: Fuel): (Value, Context)
 
 // Dafny needs some reminding that a valid address exists in the empty context
 function method EmptyContext(): Context {
-    Context(LNil, Cons(Pair(0, Object(LNil)), LNil), Cons(Pair(0, LNil), LNil), 0, 1)
+    Context(LNil, Cons(Pair(0, Object(LNil, {})), LNil), Cons(Pair(0, LNil), LNil), 0, 1)
 }
 function method Eval_EmptyContext(e: Expr): Value {
     Eval(e, EmptyContext(), 20).0
