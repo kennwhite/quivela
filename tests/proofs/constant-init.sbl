@@ -1,3 +1,4 @@
+// XFAIL: dafny
 // The Dafny backend doesn't take mutability information into account at the moment.
 new(a=5) {
   foo() {
