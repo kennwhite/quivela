@@ -37,6 +37,7 @@ lemma ${proof}(objs1: ObjList, objs2: ObjList${args})
     var (addr1, ctx1) := Eval(lhs, ctxp, FUEL);
     var (addr2, ctx2) := Eval(rhs, ctxp, FUEL);
     var args: List<Value> := ${cons_args};
+    Length(args) == ${arg_count} &&
     ${invariant}(ctx1, ctx2, addr1.addr, addr2.addr) &&
     HavocPostcondition("${method}", args, ctx1, ctx2, addr1, addr2, ${invariant}, objs1, objs2)
 {
@@ -47,6 +48,7 @@ lemma ${proof}(objs1: ObjList, objs2: ObjList${args})
     var (addr1, ctx1) := Eval(lhs, ctxp, FUEL);
     var (addr2, ctx2) := Eval(rhs, ctxp, FUEL);
     var args: List<Value> := ${cons_args};
+    assert Length(args) == ${arg_count} by { HasLength(args, ${arg_count}); }
 
     var ctx1' := ctx1.(objs := objs1);
     var ctx2' := ctx2.(objs := objs2);

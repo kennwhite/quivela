@@ -1,5 +1,4 @@
-// XFAIL: dafny
-// The Dafny backend has trouble reasoning about the length of argument lists.
+// This is to check if we insert enough hints about argument list lengths in the Dafny backend.
 new () {
     foo(a, b) {
       1

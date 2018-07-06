@@ -41,6 +41,22 @@ lemma lemma_List_Length_Cons<T>(l: List<T>)
     ensures l.Cons? && l.cdr.Cons?
 {}
 
+// Dafny will not fully unfold calls to Length with lists that have non-literal
+// elements, even if the structure of the list is known; we work around that
+// with this predicate:
+predicate LengthPred<T>(xs: List<T>, n: nat)
+  decreases n
+{
+    if (n == 0) then
+      xs == LNil
+    else
+      xs.Cons? && LengthPred(xs.cdr, n-1)
+}
+
+lemma HasLength<T>(xs: List<T>, n: nat)
+  requires LengthPred(xs, n)
+  ensures Length(xs) == n { }
+
 // association lists
 datatype Pair<T,U> = Pair(car: T, cdr: U)
 // predicate method InAssocList<T(==),U>(l: List<Pair<T,U>>, x: T)

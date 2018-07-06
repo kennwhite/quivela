@@ -176,7 +176,7 @@ class DafnyEmitter(Emitter):
                 tmpl = template.equivalence.get("method_proof")
                 text = tmpl.substitute(
                     proof=lemma_name, method=name, prefix=prefix, lhs=lhs, rhs=rhs, cons_args=arg_bindings,
-                    args=arg_list, invariant=inv, body=prf.verbatim)
+                    args=arg_list, arg_count=len(lemma_args), invariant=inv, body=prf.verbatim)
                 self.emit_directly(text)
 
                 # generate the lemma invocation
