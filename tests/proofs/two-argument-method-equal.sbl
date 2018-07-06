@@ -1,0 +1,13 @@
+// XFAIL: dafny
+// The Dafny backend has trouble reasoning about the length of argument lists.
+new () {
+    foo(a, b) {
+      1
+    }
+}
+~
+new () {
+    foo(a, b) {
+      1
+    }
+}
