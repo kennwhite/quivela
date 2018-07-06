@@ -16,13 +16,13 @@ include "Refl.dfy"
 
 
 function method TestContext(n: Var, v: Value): Context {
-    EmptyContext().(objs := AssocSet(EmptyContext().objs, 0, Object(Cons(Pair(n, v), LNil))))
+    EmptyContext().(objs := AssocSet(EmptyContext().objs, 0, Object(Cons(Pair(n, v), LNil), {})))
 }
 function method TestContext_Object1(obj: Object): Context {
     EmptyContext().(objs := AssocSet(EmptyContext().objs, 1, obj), methods := AssocSet(EmptyContext().methods, 1, LNil), nextAddr := 2)
 }
 function method TestObject(n: Var, v: Value): Object {
-    Object(Cons(Pair(n, v), LNil))
+    Object(Cons(Pair(n, v), LNil), {})
 }
 
 
@@ -81,7 +81,7 @@ method Tests() {
     // ... where 1 is not a valid ref
     assert Eval_EmptyContext(Test_Assign_CVar_Obj) == Error();
     // ... where 1 is a valid ref, x is not previously set
-    assert Eval(Test_Assign_CVar_Obj, TestContext_Object1(Object(LNil)), FUEL).0 == Int(5);
+    assert Eval(Test_Assign_CVar_Obj, TestContext_Object1(Object(LNil, {})), FUEL).0 == Int(5);
     // ... where 1 is a valid ref, x is previously set
     assert Eval(Test_Assign_CVar_Obj, TestContext_Object1(TestObject("x", Int(2))), FUEL).0 == Int(5);
 
@@ -91,7 +91,7 @@ method Tests() {
     // ... where 1 is not a valid ref
     assert Eval_EmptyContext(Test_Assign_CVar_Obj_Idx) == Error();
     // ... where 1 is a valid ref, x is not previously allocated
-    assert Eval(Test_Assign_CVar_Obj_Idx, TestContext_Object1(Object(LNil)), FUEL).0 == Int(5);
+    assert Eval(Test_Assign_CVar_Obj_Idx, TestContext_Object1(Object(LNil, {})), FUEL).0 == Int(5);
     // ... where 1 is a valid ref, x is previously a nat
     assert Eval(Test_Assign_CVar_Obj_Idx, TestContext_Object1(TestObject("x", Int(6))), FUEL).0 == Int(5);
     // ... where 1 is a valid ref, x is already a map
@@ -106,7 +106,7 @@ method Tests() {
     assert Length(AssocGet(env1.objs, ret1.addr).val.locals) == 0;
 
     // new(a=5) {}
-    var Test_New_Local := ENew(Cons(Init("a", EConst(Int(5))), LNil()), EConst(Nil()));
+    var Test_New_Local := ENew(Cons(Init("a", EConst(Int(5)), false), LNil()), EConst(Nil()));
     var (ret2, env2) := Eval(Test_New_Local, EmptyContext(), FUEL);
     assert ret2.Ref?;
     assert Length(env2.objs) == 2;
@@ -178,7 +178,7 @@ method Main() {
     //         }
     //     }
     // }
-    var PrfC := ENew(Cons(Init("k", EConst(Int(0))), LNil()),
+    var PrfC := ENew(Cons(Init("k", EConst(Int(0)), false), LNil()),
                   EMethod("get", Cons("m", LNil()),
                     ECall(EConst(Nil()), "prf", Cons(EVar("k"), Cons(EVar("m"), LNil())))));
 
@@ -198,7 +198,7 @@ method Main() {
     //         }
     //     }
     // }
-    var PrfI := ENew(Cons(Init("v", EConst(Int(0))), LNil()),
+    var PrfI := ENew(Cons(Init("v", EConst(Int(0)), false), LNil()),
                   EMethod("get", Cons("m", LNil()),
                     EITE(ECVar(EConst(Nil()), "v", EVar("m")),
                          ECVar(EConst(Nil()), "v", EVar("m")),
