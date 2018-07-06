@@ -229,7 +229,7 @@ class DafnyEmitter(Emitter):
         initial_context = "EmptyContext()"
         if prf.initctx is not None:
             k, v = prf.initctx
-            initial_context = "EmptyContext().(objs := AssocSet(EmptyContext().objs, 0, Object(Cons(Pair(\"{}\", Int({})), LNil))))".format(k, v)
+            initial_context = "EmptyContext().(objs := AssocSet(EmptyContext().objs, 0, Object(Cons(Pair(\"{}\", Int({})), LNil), {{}})))".format(k, v)
         
         self.start_method("run")
 
