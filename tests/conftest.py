@@ -96,7 +96,8 @@ class UCEval(UCItem):
         # make sure there's an assert in the output file
         with open(path) as f:
             script = f.read()
-            assert "assert" in script
+            # A bit hacky, since this depends on internal details of the two backends:
+            assert ("assert" in script or "SUCCESS" in script)
         # and then check we got the right result
         if self.tags.get("XFAIL", None) and self._is_me(self.tags["XFAIL"]):
             assert not ret

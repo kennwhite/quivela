@@ -60,7 +60,13 @@ class DafnyRuntime(Runtime):
                     stdout=stdout, stderr=stderr, shell=True, universal_newlines=True)
 
         out, err = proc.communicate()
-        success = proc.returncode == 0
+
+        if self.prog.expected_return is not None and self.prog.expected_return != "None":
+            success = "SUCCESS" in out.splitlines()[-1]
+        else:
+            # Some eval tests don't have an expected value, but instead just
+            # assert something.
+            success = proc.returncode == 0
 
         if success and not verbose and "Running..." in out:
             out = out.split("Running...")[1].strip()

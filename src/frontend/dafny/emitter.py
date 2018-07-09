@@ -247,13 +247,16 @@ class DafnyEmitter(Emitter):
                 "var ({}, {}) := Eval({}, {}, FUEL);".format(ret, newctx, expr, ctx),
                 'Reflect_Expr({}); print " ==> "; Reflect_Value({}); print "\\n";'.format(expr, ret))
             ctx = newctx
-        
+
+        # If there's an expected value and the program matched it, we output
+        # "SUCCESS" so the testing script can detect it.
         if prf.expect is not None and prf.expect != "None":
             try:
                 x = int(prf.expect)
-                self.emit("assert {} == Int({});".format(ret, x))
+                self.emit("if ({} == Int({}))".format(ret, x))
             except ValueError:
-                self.emit("assert {}.{}?;".format(ret, prf.expect))
+                self.emit("if ({}.{}?)".format(ret, prf.expect))
+            self.emit(" { print \"SUCCESS\"; } else { print \"FAILURE\"; }")
 
         self.end(True)
 
