@@ -177,9 +177,14 @@ class DafnyEmitter(Emitter):
 
                 # Assert some equalities about method arguments in the new scopes:
                 argument_eqs = []
-                for arg, lemma_arg in zip(common_methods[name].args, lemma_args):
-                    argument_eqs.append("    assert AssocGet(scope1, \"{}\") == Some({}) == AssocGet(scope2, \"{}\");"
-                                        .format(arg.name, lemma_arg[0], arg.name))
+                assert len(common_methods[name].args) == len(lemma_args)
+                for i in range(0, len(lemma_args)):
+                    arg = common_methods[name].args[i]
+                    lemma_arg = lemma_args[i]
+                    arg_assertion = '''
+    assert {{:fuel (AssocGet<Var, Value>), {fuel}}} AssocGet(scope1, \"{arg_name}\") == Some({lemma_arg}) == AssocGet(scope2, \"{arg_name}\");
+'''[1:-1]
+                    argument_eqs.append(arg_assertion.format(arg_name=arg.name, lemma_arg=lemma_arg[0], fuel=i+1))
 
                 text = tmpl.substitute(
                     proof=lemma_name, method=name, prefix=prefix, lhs=lhs, rhs=rhs, cons_args=arg_bindings,
