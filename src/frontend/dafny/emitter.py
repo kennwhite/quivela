@@ -174,9 +174,17 @@ class DafnyEmitter(Emitter):
                 arg_bindings = list_to_dafny_list([v for v, _ in lemma_args])
                 # generate the lemma
                 tmpl = template.equivalence.get("method_proof")
+
+                # Assert some equalities about method arguments in the new scopes:
+                argument_eqs = []
+                for arg, lemma_arg in zip(common_methods[name].args, lemma_args):
+                    argument_eqs.append("    assert AssocGet(scope1, \"{}\") == Some({}) == AssocGet(scope2, \"{}\");"
+                                        .format(arg.name, lemma_arg[0], arg.name))
+
                 text = tmpl.substitute(
                     proof=lemma_name, method=name, prefix=prefix, lhs=lhs, rhs=rhs, cons_args=arg_bindings,
-                    args=arg_list, arg_count=len(lemma_args), invariant=inv, body=prf.verbatim)
+                    args=arg_list, arg_count=len(lemma_args), argument_equalities="\n".join(argument_eqs),
+                    invariant=inv, body=prf.verbatim)
                 self.emit_directly(text)
 
                 # generate the lemma invocation

@@ -50,10 +50,12 @@ lemma ${proof}(objs1: ObjList, objs2: ObjList${args})
     var args: List<Value> := ${cons_args};
     assert Length(args) == ${arg_count} by { HasLength(args, ${arg_count}); }
 
+
     var ctx1' := ctx1.(objs := objs1);
     var ctx2' := ctx2.(objs := objs2);
     var scope1 := BindArguments(GetMethod(ctx1', addr1.addr, "${method}").args, args);
     var scope2 := BindArguments(GetMethod(ctx2', addr2.addr, "${method}").args, args);
+${argument_equalities}
     var (retL, ctxL) := CallMethod("${method}", scope1, addr1.addr, ctx1');
     var (retR, ctxR) := CallMethod("${method}", scope2, addr2.addr, ctx2');
 
