@@ -165,6 +165,7 @@ class DafnyEmitter(Emitter):
                 if n in rhs_methods and len(rhs_methods[n].args) == len(m.args):
                     common_methods[n] = m
             for name in sorted(common_methods):
+
                 lemma_name = "{}_{}".format(proof_name, name)
                 lemma_args = [(self.id.fresh("v"), "Value") for _ in common_methods[name].args]
                 arg_list = ", ".join("{}: Value".format(v) for v, _ in lemma_args)
@@ -194,14 +195,13 @@ class DafnyEmitter(Emitter):
 
                 # generate the lemma invocation
                 use_tmpl = template.equivalence.get("lemma_use_noargs" if lemma_args == [] else "lemma_use_args")
-                args = ", ".join(v for v, _ in lemma_args)
-                use_text = use_tmpl.substitute(
-                    proof=lemma_name, method=name, bvs=bvs, cons_args=arg_bindings, args=args, invariant=inv
-                )
+                args = ", ".join(["Nth(values, {})".format(i) for i in range(0, len(lemma_args))])
+                use_text = use_tmpl.substitute(proof=lemma_name, method=name, args=args)
                 lemmas.append(use_text)
+            lemmas.append(" {\n      }") # terminate dangling else at the end
         
         # generate the final proof
-        body = "\n".join(lemmas)
+        body = "     " + "".join(lemmas)
         tmpl = template.equivalence.get("equivalence_proof")
         text = tmpl.substitute(
             proof=proof_name, prefix=prefix, lhs=lhs, rhs=rhs, invariant=inv, body=body

@@ -132,6 +132,14 @@ function method Append<T>(a: List<T>, b: List<T>): List<T>
     if a.LNil? then b else Cons(a.car, Append(a.cdr, b))
 }
 
+
+function Nth<T>(xs: List<T>, n: nat): T
+  decreases n
+  requires n < Length(xs)
+{
+  if n == 0 then xs.car else Nth(xs.cdr, n-1)
+}
+
 function method InitLocals(locals: List<Init>, ctx: Context, fuel: Fuel, acc: Env): Pair<Context, Env>
     decreases fuel, 3, locals
 {

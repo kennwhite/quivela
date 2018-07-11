@@ -1,5 +1,3 @@
-// XFAIL: dafny
-// The Dafny backend doesn't reason well about arguments used in tuples.
 new(a) {
     g(x, y) { <x, y> }
 }

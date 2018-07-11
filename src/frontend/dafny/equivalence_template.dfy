@@ -82,26 +82,27 @@ lemma ${proof}()
     var (addr1, ctx1) := Eval(lhs, ctxp, FUEL);
     var (addr2, ctx2) := Eval(rhs, ctxp, FUEL);
 
+    forall objs1: ObjList, objs2: ObjList, m: Var, values: List<Value>
+          | HavocPrecondition(ctx1, ctx2, addr1, addr2, ${invariant}, objs1, objs2) &&
+            ValidMethod(ctx1, addr1.addr, m) && ValidMethod(ctx2, addr2.addr, m) &&
+            Length(GetMethod(ctx1, addr1.addr, m).args) == Length(GetMethod(ctx2, addr2.addr, m).args) == Length(values)
+      ensures HavocPostcondition(m, values, ctx1, ctx2, addr1, addr2, ${invariant}, objs1, objs2) {
 ${body}
+    }
+
 }
 ///< END equivalence_proof
 
 ///< START lemma_use_args
-    // Invoke equivalence proof for method `${method}`
-    forall objs1: ObjList, objs2: ObjList | HavocPrecondition(ctx1, ctx2, addr1, addr2, ${invariant}, objs1, objs2)
-      ensures forall ${bvs} :: HavocPostcondition("${method}", ${cons_args}, ctx1, ctx2, addr1, addr2, ${invariant}, objs1, objs2)
-    {
-        forall ${bvs} {
-            ${proof}(objs1, objs2, ${args});
-        }
-    }
+ if (m == "${method}") {
+        // Invoke equivalence proof for method `${method}`
+        ${proof}(objs1, objs2, ${args});
+      } else
 ///< END lemma_use_args
 
 ///< START lemma_use_noargs
-    // Invoke equivalence proof for method `${method}`
-    forall objs1: ObjList, objs2: ObjList | HavocPrecondition(ctx1, ctx2, addr1, addr2, ${invariant}, objs1, objs2)
-      ensures HavocPostcondition("${method}", LNil, ctx1, ctx2, addr1, addr2, ${invariant}, objs1, objs2)
-    { 
+ if (m == "${method}") {
+        // Invoke equivalence proof for method `${method}`
         ${proof}(objs1, objs2);
-    }
+      } else
 ///< END lemma_use_noargs
