@@ -12,6 +12,7 @@
 # permissions and limitations under the License.
 
 from argparse import ArgumentParser
+import logging
 import os
 import sys
 from typing import Optional, Tuple
@@ -47,6 +48,9 @@ def main():
     args = ap.parse_args()
 
     runtime = RosetteRuntime if args.backend == "rosette" else DafnyRuntime
+
+    if args.verbose:
+        logging.basicConfig(level=logging.INFO)
 
     if args.program == "-":
         sbl = sys.stdin.read()
