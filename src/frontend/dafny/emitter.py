@@ -11,18 +11,42 @@
 # express or implied. See the License for the specific language governing 
 # permissions and limitations under the License.
 
+import logging
 import os
+import subprocess
+import tempfile
 from typing import Any, Dict, List, Tuple
 
 from ..emitter import *
 from ..proof import *
 from ..analysis import GatherObjectInfo
-
+from ..runtime import Runtime
 from . import template
 
 
 DAFNY_INCLUDES = ["Lang.dfy", "Indistinguishable.dfy", "Refl.dfy"]
 DAFNY_BACKEND_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../backend/dafny"))
+
+def run_expr(prefix, exp) -> Optional[str]:
+    tmpl = template.equivalence.get("print_expr")
+    prog = tmpl.substitute(prefix=prefix.to_dafny(), exp=exp.to_dafny())
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".dfy",
+                                     delete=False) as f:
+        fname = f.name
+        for i in DAFNY_INCLUDES + ["Call.dfy", "Print.dfy"]:
+            f.write("include \"{}\"\n".format(os.path.join(DAFNY_BACKEND_ROOT, i)))
+        f.write(prog)
+    rt = Runtime()
+    binary = rt._find_executable("dafny")
+    proc = subprocess.Popen([binary, "/compile:3", fname],
+                            stdout=subprocess.PIPE,
+                            universal_newlines=True)
+    out, err = proc.communicate()
+    lines = out.splitlines()
+    if "SUCCESS" in lines[-1]:
+        return out.splitlines()[-2]
+    else:
+        return None
 
 
 class DafnyEmitter(Emitter):
@@ -111,6 +135,9 @@ class DafnyEmitter(Emitter):
         self.end()
 
         prelude = "\n".join('include "{}"'.format(i.replace("\\", "\\\\")) for i in self.includes)
+        # Dafny's builtin print function uses different cases for true and false; use this
+        # as a workaround for now:
+        prelude += "\nconst True := true; const False := false;"
         program = "\n\n".join([prelude] + self.bodies)
         return program
 
@@ -157,6 +184,11 @@ class DafnyEmitter(Emitter):
         else:
             inv = self.emit_TrueInvariant(TrueInvariant())
 
+        # If we can evaluate both sides to a constant context and result, we
+        # use these terms directly instead of a call to Eval in the output.
+        lhs_compiled = run_expr(prf.context, prf.lhs)
+        rhs_compiled = run_expr(prf.context, prf.rhs)
+
         # generate a new lemma for each method
         lemmas = []  # type: List[str]
         if lhs_methods is not None and rhs_methods is not None:
@@ -175,6 +207,7 @@ class DafnyEmitter(Emitter):
                 arg_bindings = list_to_dafny_list([v for v, _ in lemma_args])
                 # generate the lemma
                 tmpl = template.equivalence.get("method_proof")
+                tmpl_compiled = template.equivalence.get("method_proof_compiled")
 
                 # Assert some equalities about method arguments in the new scopes:
                 argument_eqs = []
@@ -187,10 +220,18 @@ class DafnyEmitter(Emitter):
 '''[1:-1]
                     argument_eqs.append(arg_assertion.format(arg_name=arg.name, lemma_arg=lemma_arg[0], fuel=i+1))
 
-                text = tmpl.substitute(
-                    proof=lemma_name, method=name, prefix=prefix, lhs=lhs, rhs=rhs, cons_args=arg_bindings,
-                    args=arg_list, arg_count=len(lemma_args), argument_equalities="\n".join(argument_eqs),
-                    invariant=inv, body=prf.verbatim)
+                # TODO: factor out commonalities between the templates
+                if lhs_compiled is not None and rhs_compiled is not None:
+                    text = tmpl_compiled.substitute(
+                        proof=lemma_name, method=name, result1=lhs_compiled, result2=rhs_compiled,
+                        cons_args=arg_bindings, args=arg_list, arg_count=len(lemma_args),
+                        argument_equalities="\n".join(argument_eqs),
+                        invariant=inv, body=prf.verbatim)
+                else:
+                    text = tmpl.substitute(
+                        proof=lemma_name, method=name, prefix=prefix, lhs=lhs, rhs=rhs, cons_args=arg_bindings,
+                        args=arg_list, arg_count=len(lemma_args), argument_equalities="\n".join(argument_eqs),
+                        invariant=inv, body=prf.verbatim)
                 self.emit_directly(text)
 
                 # generate the lemma invocation
@@ -202,10 +243,17 @@ class DafnyEmitter(Emitter):
         
         # generate the final proof
         body = "     " + "".join(lemmas)
-        tmpl = template.equivalence.get("equivalence_proof")
-        text = tmpl.substitute(
-            proof=proof_name, prefix=prefix, lhs=lhs, rhs=rhs, invariant=inv, body=body
-        )
+        if lhs_compiled is not None and rhs_compiled is not None:
+            logging.info("Using precompiled terms for {} and {}".format(prf.lhs, prf.rhs))
+            tmpl = template.equivalence.get("equivalence_proof_compiled")
+            text = tmpl.substitute(
+                proof=proof_name, result1=lhs_compiled, result2=rhs_compiled,
+                invariant=inv, body=body)
+        else:
+            tmpl = template.equivalence.get("equivalence_proof")
+            text = tmpl.substitute(
+                proof=proof_name, prefix=prefix, lhs=lhs, rhs=rhs, invariant=inv, body=body
+            )
         self.emit_directly(text, proof_name)
 
 

@@ -106,3 +106,70 @@ ${body}
         ${proof}(objs1, objs2);
       } else
 ///< END lemma_use_noargs
+
+///< START print_expr
+method Main()
+{
+  var prefix := ${prefix};
+  var ctxp := Eval(prefix, EmptyContext(), FUEL).1;
+  var lhs := ${exp};
+  var (res, ctx) := Eval(lhs, ctxp, FUEL);
+  print (res, quoteContext(ctx)), "\n";
+  print "SUCCESS";
+}
+///< END print_expr
+
+///< START method_proof_compiled
+// Equivalence proof for method `${method}`
+lemma ${proof}(objs1: ObjList, objs2: ObjList${args})
+  requires
+    var (addr1, ctx1) := ${result1};
+    var (addr2, ctx2) := ${result2};
+    HavocPrecondition(ctx1, ctx2, addr1, addr2, ${invariant}, objs1, objs2)
+  ensures
+    var (addr1, ctx1) := ${result1};
+    var (addr2, ctx2) := ${result2};
+    var args: List<Value> := ${cons_args};
+    Length(args) == ${arg_count} &&
+    ${invariant}(ctx1, ctx2, addr1.addr, addr2.addr) &&
+    HavocPostcondition("${method}", args, ctx1, ctx2, addr1, addr2, ${invariant}, objs1, objs2)
+{
+    var (addr1, ctx1) := ${result1};
+    var (addr2, ctx2) := ${result2};
+    var args: List<Value> := ${cons_args};
+    assert Length(args) == ${arg_count} by { HasLength(args, ${arg_count}); }
+
+
+    var ctx1' := ctx1.(objs := objs1);
+    var ctx2' := ctx2.(objs := objs2);
+    var scope1 := BindArguments(GetMethod(ctx1', addr1.addr, "${method}").args, args);
+    var scope2 := BindArguments(GetMethod(ctx2', addr2.addr, "${method}").args, args);
+${argument_equalities}
+    var (retL, ctxL) := CallMethod("${method}", scope1, addr1.addr, ctx1');
+    var (retR, ctxR) := CallMethod("${method}", scope2, addr2.addr, ctx2');
+
+${body}
+}
+///< END method_proof_compiled
+
+///< START equivalence_proof_compiled
+// Top-level equivalence proof
+lemma ${proof}()
+  ensures
+    var (addr1, ctx1) := ${result1};
+    var (addr2, ctx2) := ${result2};
+    Equivalent_AllMethods(ctx1, ctx2, addr1, addr2, ${invariant})
+{
+
+    var (addr1, ctx1) := ${result1};
+    var (addr2, ctx2) := ${result2};
+    forall objs1: ObjList, objs2: ObjList, m: Var, values: List<Value>
+          | HavocPrecondition(ctx1, ctx2, addr1, addr2, ${invariant}, objs1, objs2) &&
+            ValidMethod(ctx1, addr1.addr, m) && ValidMethod(ctx2, addr2.addr, m) &&
+            Length(GetMethod(ctx1, addr1.addr, m).args) == Length(GetMethod(ctx2, addr2.addr, m).args) == Length(values)
+      ensures HavocPostcondition(m, values, ctx1, ctx2, addr1, addr2, ${invariant}, objs1, objs2) {
+${body}
+    }
+
+}
+///< END equivalence_proof_compiled
