@@ -188,6 +188,7 @@ class DafnyEmitter(Emitter):
         # use these terms directly instead of a call to Eval in the output.
         lhs_compiled = run_expr(prf.context, prf.lhs)
         rhs_compiled = run_expr(prf.context, prf.rhs)
+        use_compiled = lhs_compiled is not None and rhs_compiled is not None
 
         # generate a new lemma for each method
         lemmas = []  # type: List[str]
@@ -221,7 +222,7 @@ class DafnyEmitter(Emitter):
                     argument_eqs.append(arg_assertion.format(arg_name=arg.name, lemma_arg=lemma_arg[0], fuel=i+1))
 
                 # TODO: factor out commonalities between the templates
-                if lhs_compiled is not None and rhs_compiled is not None:
+                if use_compiled:
                     text = tmpl_compiled.substitute(
                         proof=lemma_name, method=name, result1=lhs_compiled, result2=rhs_compiled,
                         cons_args=arg_bindings, args=arg_list, arg_count=len(lemma_args),
@@ -243,7 +244,7 @@ class DafnyEmitter(Emitter):
         
         # generate the final proof
         body = "     " + "".join(lemmas)
-        if lhs_compiled is not None and rhs_compiled is not None:
+        if use_compiled:
             logging.info("Using precompiled terms for {} and {}".format(prf.lhs, prf.rhs))
             tmpl = template.equivalence.get("equivalence_proof_compiled")
             text = tmpl.substitute(
