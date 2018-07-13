@@ -27,9 +27,7 @@ from . import template
 DAFNY_INCLUDES = ["Lang.dfy", "Indistinguishable.dfy", "Refl.dfy"]
 DAFNY_BACKEND_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../backend/dafny"))
 
-def run_expr(prefix, exp) -> Optional[str]:
-    tmpl = template.equivalence.get("print_expr")
-    prog = tmpl.substitute(prefix=prefix.to_dafny(), exp=exp.to_dafny())
+def run_dafny(prog) -> Optional[str]:
     with tempfile.NamedTemporaryFile(mode="w", suffix=".dfy",
                                      delete=False) as f:
         fname = f.name
@@ -43,10 +41,15 @@ def run_expr(prefix, exp) -> Optional[str]:
                             universal_newlines=True)
     out, err = proc.communicate()
     lines = out.splitlines()
-    if "SUCCESS" in lines[-1]:
-        return out.splitlines()[-2]
+    if proc.returncode == 0 and len(lines) > 0:
+        return lines[-1]
     else:
         return None
+
+def run_expr(prefix, exp) -> Optional[str]:
+    tmpl = template.equivalence.get("print_expr")
+    prog = tmpl.substitute(prefix=prefix.to_dafny(), exp=exp.to_dafny())
+    return run_dafny(prog)
 
 
 class DafnyEmitter(Emitter):

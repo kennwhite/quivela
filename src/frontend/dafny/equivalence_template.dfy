@@ -115,7 +115,6 @@ method Main()
   var lhs := ${exp};
   var (res, ctx) := Eval(lhs, ctxp, FUEL);
   print (res, quoteContext(ctx)), "\n";
-  print "SUCCESS";
 }
 ///< END print_expr
 
