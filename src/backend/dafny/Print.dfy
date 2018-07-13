@@ -35,11 +35,6 @@ function method quoteScope(scope: Scope): Scope
   quoteList(quotePair(quoteVar, quoteValue))(scope)
 }
 
-function method quoteVarSet(xs: set<Var>): set<Var>
-{
-  set x: Var | x in xs :: quoteVar(x)
-}
-
 function method quoteVar(x: Var): Var
 {
   "\"" +  x + "\""
@@ -71,7 +66,7 @@ function method quoteList<T>(quoteElt: T -> T): List<T> -> List<T>
 function method quoteObject(obj: Object): Object
 {
   obj.(locals := quoteEnv(obj.locals), 
-       immutables := quoteVarSet(obj.immutables))
+       immutables := quoteList(quoteVar)(obj.immutables))
 }
 
 function method quotePair<S, T>(quoteS: S -> S, quoteT: T -> T): Pair<S, T> -> Pair<S, T>

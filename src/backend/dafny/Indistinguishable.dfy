@@ -36,7 +36,7 @@ lemma {:induction l1, l2} EqualKeys_AssocGet<T(==,!new), U>(l1: List<Pair<T, U>>
 predicate {:induction false} ImmutablesUnchanged(objs: ObjList, objs': ObjList) {
     forall k, l ::
         (AssocGet(objs, k).Some? && AssocGet(objs', k).Some? && AssocGet(AssocGet(objs, k).val.locals, l).Some? &&
-         AssocGet(AssocGet(objs', k).val.locals, l).Some? && l in AssocGet(objs, k).val.immutables) ==>
+         AssocGet(AssocGet(objs', k).val.locals, l).Some? && InList(AssocGet(objs, k).val.immutables, l)) ==>
           AssocGet(AssocGet(objs, k).val.locals, l).val == AssocGet(AssocGet(objs', k).val.locals, l).val
 }
 
