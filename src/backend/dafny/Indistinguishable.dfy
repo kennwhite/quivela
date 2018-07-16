@@ -155,3 +155,20 @@ predicate DefaultInvariant(ctx1: Context, ctx2: Context, addr1: Addr, addr2: Add
     var obj2 := AssocGet(ctx2.objs, addr2).val;
     forall k :: AssocGet(obj1.locals, k) == AssocGet(obj2.locals, k)
 }
+
+lemma HavocAddrSomeIff(objs1: ObjList, objs2: ObjList, addr: Addr)
+  requires HavocedList(objs1, objs2)
+  ensures AssocGet(objs1, addr).Some? <==> AssocGet(objs2, addr).Some?
+{
+  EqualKeys_AssocGet(objs1, objs2, addr);
+}
+
+lemma HavocLocalSomeIff(ctx: Context, objs: ObjList, addr: Addr, l: Var)
+  requires ValidRef(addr, ctx) && HavocedList(ctx.objs, objs) &&
+           AssocGet(objs, addr).Some?
+  ensures AssocGet(AssocGet(objs, addr).val.locals, l).Some? <==>
+          AssocGet(AssocGet(ctx.objs, addr).val.locals, l).Some?
+{
+  EqualKeys_AssocGet(ctx.objs, objs, addr);
+  EqualKeys_AssocGet(AssocGet(ctx.objs, addr).val.locals, AssocGet(objs, addr).val.locals, l);
+}
