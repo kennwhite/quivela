@@ -503,3 +503,17 @@ function method EmptyContext(): Context {
 function method Eval_EmptyContext(e: Expr): Value {
     Eval(e, EmptyContext(), 20).0
 }
+
+lemma AssocGet_Cons<K, V>()
+    ensures forall k': K, k: K, v: V, xs: List<Pair<K, V>> ::
+            AssocGet(Cons(Pair(k, v), xs), k') == if k == k' then Some(v) else AssocGet(xs, k')
+{
+
+}
+
+
+lemma Length_Cons<T>()
+    ensures forall x: T, xs: List<T> :: Length(Cons(x, xs)) == 1 + Length(xs)
+{
+
+}
