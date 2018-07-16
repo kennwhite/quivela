@@ -216,6 +216,17 @@ class DafnyEmitter(Emitter):
             lhs_compiled = run_expr(prf.context, prf.lhs)
             rhs_compiled = run_expr(prf.context, prf.rhs)
             use_compiled = lhs_compiled is not None and rhs_compiled is not None
+            if Config.get_args().consistency_checks and use_compiled:
+                # Emit lemmas stating that the compilation was performed correctly
+                correctness_tmpl = template.equivalence.get('compilation_correctness')
+                correctness_lemma1 = correctness_tmpl.substitute(
+                    name=self.id.fresh('compilation_correctness'),
+                    prefix=prefix, unevaled=lhs, compiled=lhs_compiled)
+                self.emit_directly(correctness_lemma1)
+                correctness_lemma2 = correctness_tmpl.substitute(
+                    name=self.id.fresh('compilation_correctness'),
+                    prefix=prefix, unevaled=rhs, compiled=rhs_compiled)
+                self.emit_directly(correctness_lemma2)
         else:
             use_compiled = False
 

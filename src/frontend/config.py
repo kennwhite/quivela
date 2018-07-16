@@ -24,6 +24,7 @@ class Config():
         ap.add_argument("--path", help="additional path to search for logical backend binaries (racket/dafny)")
         ap.add_argument("--no-precompile", help="don't precompile constant expressions (dafny)",
                         action="store_true")
+        ap.add_argument("--consistency-checks", help="insert assertions to verify correctness of optimizations (dafny)", action="store_true")
         Config.args = ap.parse_args(args=args)
 
     @staticmethod

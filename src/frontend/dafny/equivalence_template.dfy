@@ -182,3 +182,13 @@ ${body}
 
 }
 ///< END equivalence_proof_compiled
+
+///< START compilation_correctness
+lemma ${name}()
+  ensures
+  var prefix := ${prefix};
+  var ctxp := Eval(prefix, EmptyContext(), FUEL).1;
+  var unevaled := ${unevaled};
+  Eval(unevaled, ctxp, FUEL) == ${compiled}
+{ }
+///< END compilation_correctness
