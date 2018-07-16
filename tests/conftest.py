@@ -23,7 +23,10 @@ from prove import prove
 from run import run
 from frontend.rosette import RosetteRuntime
 from frontend.dafny import DafnyRuntime
+from frontend.config import Config
 
+
+Config.init_args()
 
 # test cases
 def pytest_collect_file(parent, path):

@@ -11,7 +11,6 @@
 # express or implied. See the License for the specific language governing 
 # permissions and limitations under the License.
 
-from argparse import ArgumentParser
 import logging
 import os
 import sys
@@ -20,6 +19,7 @@ from typing import Optional, Tuple
 from frontend.program import Program
 from frontend.dafny import DafnyRuntime
 from frontend.rosette import RosetteRuntime
+from frontend.config import Config
 
 
 def prove(prog: str, keep=False, path: Optional[str]=None, backend_cls=DafnyRuntime) -> Tuple[bool, str]:
@@ -39,13 +39,8 @@ def prove(prog: str, keep=False, path: Optional[str]=None, backend_cls=DafnyRunt
 
 
 def main():
-    ap = ArgumentParser()
-    ap.add_argument("program", help="either (a) a path to a UC file, (b) a verbatim UC program, or (c) - to read from stdin")
-    ap.add_argument("-k", "--keep-file", help="keep the dafny output file", action="store_true")
-    ap.add_argument("-v", "--verbose", help="print backend output", action="store_true")
-    ap.add_argument("-b", "--backend", choices=["dafny", "rosette"], help="logical backend to use", default="dafny")
-    ap.add_argument("--path", help="additional path to search for logical backend binaries (racket/dafny)")
-    args = ap.parse_args()
+    Config.parse_args()
+    args = Config.get_args()
 
     runtime = RosetteRuntime if args.backend == "rosette" else DafnyRuntime
 
