@@ -25,6 +25,7 @@ from ..emitter import *
 from ..proof import *
 from ..analysis import GatherObjectInfo
 from ..runtime import Runtime
+from ..config import Config
 from . import template
 
 
@@ -211,9 +212,12 @@ class DafnyEmitter(Emitter):
 
         # If we can evaluate both sides to a constant context and result, we
         # use these terms directly instead of a call to Eval in the output.
-        lhs_compiled = run_expr(prf.context, prf.lhs)
-        rhs_compiled = run_expr(prf.context, prf.rhs)
-        use_compiled = lhs_compiled is not None and rhs_compiled is not None
+        if not Config.get_args().no_precompile:
+            lhs_compiled = run_expr(prf.context, prf.lhs)
+            rhs_compiled = run_expr(prf.context, prf.rhs)
+            use_compiled = lhs_compiled is not None and rhs_compiled is not None
+        else:
+            use_compiled = False
 
         # generate a new lemma for each method
         lemmas = []  # type: List[str]
@@ -273,6 +277,8 @@ class DafnyEmitter(Emitter):
                         rec_lemmas=rec_lemmas,
                         invariant=inv, body=prf.verbatim)
                 else:
+                    if arg_list != "":
+                        arg_list = ", " + arg_list
                     text = tmpl.substitute(
                         proof=lemma_name, method=name, prefix=prefix, lhs=lhs, rhs=rhs, cons_args=arg_bindings,
                         args=arg_list, arg_count=len(lemma_args), argument_equalities="\n".join(argument_eqs),
@@ -289,7 +295,9 @@ class DafnyEmitter(Emitter):
                     if havoc_arg_values != "" and args != "":
                         args = ", " + args
                 else:
-                    havoc_arg_values = ""
+                    havoc_arg_values = "objs1, objs2"
+                    if args != "":
+                        args = ", " + args
                 use_text = use_tmpl.substitute(proof=lemma_name, method=name, args=args,
                                                havoc_args=havoc_arg_values)
                 lemmas.append(use_text)
