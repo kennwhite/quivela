@@ -12,6 +12,7 @@
 // permissions and limitations under the License.
 
 datatype Value = Int(val: int) | Tuple(elts:List<Value>) | Map(vals: List<Pair<Value, Value>>) | Ref(addr: Addr) | Nil() | Error()
+               | Internal(msg: string) // Auxiliary terms for computing havoced object lists (see `Havoc.dfy`)
 
 type Var = string
 datatype Init = Init(name: Var, val: Expr, immutable: bool)

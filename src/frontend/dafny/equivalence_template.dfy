@@ -96,14 +96,14 @@ ${body}
 ///< START lemma_use_args
  if (m == "${method}") {
         // Invoke equivalence proof for method `${method}`
-        ${proof}(objs1, objs2, ${args});
+        ${proof}(${havoc_args}${args});
       } else
 ///< END lemma_use_args
 
 ///< START lemma_use_noargs
  if (m == "${method}") {
         // Invoke equivalence proof for method `${method}`
-        ${proof}(objs1, objs2);
+        ${proof}(${havoc_args});
       } else
 ///< END lemma_use_noargs
 
@@ -120,14 +120,18 @@ method Main()
 
 ///< START method_proof_compiled
 // Equivalence proof for method `${method}`
-lemma ${proof}(objs1: ObjList, objs2: ObjList${args})
+lemma ${proof}(${havoc_vars}${args})
   requires
     var (addr1, ctx1) := ${result1};
     var (addr2, ctx2) := ${result2};
+    var objs1 := ${havoc_objs1};
+    var objs2 := ${havoc_objs2};
     HavocPrecondition(ctx1, ctx2, addr1, addr2, ${invariant}, objs1, objs2)
   ensures
     var (addr1, ctx1) := ${result1};
     var (addr2, ctx2) := ${result2};
+    var objs1 := ${havoc_objs1};
+    var objs2 := ${havoc_objs2};
     var args: List<Value> := ${cons_args};
     Length(args) == ${arg_count} &&
     ${invariant}(ctx1, ctx2, addr1.addr, addr2.addr) &&
@@ -138,7 +142,8 @@ lemma ${proof}(objs1: ObjList, objs2: ObjList${args})
     var args: List<Value> := ${cons_args};
     assert Length(args) == ${arg_count} by { HasLength(args, ${arg_count}); }
 
-
+    var objs1 := ${havoc_objs1};
+    var objs2 := ${havoc_objs2};
     var ctx1' := ctx1.(objs := objs1);
     var ctx2' := ctx2.(objs := objs2);
     var scope1 := BindArguments(GetMethod(ctx1', addr1.addr, "${method}").args, args);
@@ -146,6 +151,8 @@ lemma ${proof}(objs1: ObjList, objs2: ObjList${args})
 ${argument_equalities}
     var (retL, ctxL) := CallMethod("${method}", scope1, addr1.addr, ctx1');
     var (retR, ctxR) := CallMethod("${method}", scope2, addr2.addr, ctx2');
+    // Invoke auxiliary lemmas to help Dafny unfold definitions as much as needed:
+${rec_lemmas}
 
 ${body}
 }
@@ -162,11 +169,14 @@ lemma ${proof}()
 
     var (addr1, ctx1) := ${result1};
     var (addr2, ctx2) := ${result2};
-    forall objs1: ObjList, objs2: ObjList, m: Var, values: List<Value>
-          | HavocPrecondition(ctx1, ctx2, addr1, addr2, ${invariant}, objs1, objs2) &&
+    forall m: Var, values: List<Value>, objs1: ObjList, objs2: ObjList
+    | HavocPrecondition(ctx1, ctx2, addr1, addr2, ${invariant}, objs1, objs2) &&
             ValidMethod(ctx1, addr1.addr, m) && ValidMethod(ctx2, addr2.addr, m) &&
             Length(GetMethod(ctx1, addr1.addr, m).args) == Length(GetMethod(ctx2, addr2.addr, m).args) == Length(values)
-      ensures HavocPostcondition(m, values, ctx1, ctx2, addr1, addr2, ${invariant}, objs1, objs2) {
+            ensures HavocPostcondition(m, values, ctx1, ctx2, addr1, addr2, ${invariant}, objs1, objs2) {
+
+              // Assume correctness of more detailed representation of havoced object lists:
+${havoc_eqs}
 ${body}
     }
 

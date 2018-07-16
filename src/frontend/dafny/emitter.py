@@ -11,10 +11,14 @@
 # express or implied. See the License for the specific language governing 
 # permissions and limitations under the License.
 
+import ast
 import logging
 import os
+import re
+import string
 import subprocess
 import tempfile
+from functools import reduce
 from typing import Any, Dict, List, Tuple
 
 from ..emitter import *
@@ -31,7 +35,7 @@ def run_dafny(prog) -> Optional[str]:
     with tempfile.NamedTemporaryFile(mode="w", suffix=".dfy",
                                      delete=False) as f:
         fname = f.name
-        for i in DAFNY_INCLUDES + ["Call.dfy", "Print.dfy"]:
+        for i in DAFNY_INCLUDES + ["Call.dfy", "Print.dfy", "Havoc.dfy", "Util.dfy"]:
             f.write("include \"{}\"\n".format(os.path.join(DAFNY_BACKEND_ROOT, i)))
         f.write(prog)
     rt = Runtime()
@@ -41,6 +45,7 @@ def run_dafny(prog) -> Optional[str]:
                             universal_newlines=True)
     out, err = proc.communicate()
     lines = out.splitlines()
+    logging.info("Dafny process printed:\n{}".format(out))
     if proc.returncode == 0 and len(lines) > 0:
         return lines[-1]
     else:
@@ -51,6 +56,23 @@ def run_expr(prefix, exp) -> Optional[str]:
     prog = tmpl.substitute(prefix=prefix.to_dafny(), exp=exp.to_dafny())
     return run_dafny(prog)
 
+def compute_havoc_data(prefix, expr) -> (str, List[str]):
+        prog = '''
+method Main()
+{{
+  var havocer := new Havocer("{prefix}");
+  havocer.printHavocData({expr});
+}}'''.format(prefix=prefix, expr=expr)
+        result = run_dafny(prog).split(" @@@ ") # ugly hack; should write json printer in Dafny instead
+        assert len(result) == 2
+        p = re.compile(r'Value\.Internal\(([a-zA-Z0-9_]+)\)')
+        fixed_obj = p.sub(r'\1', result[0])
+        havoc_vars = ast.literal_eval(result[1])
+        return (fixed_obj, havoc_vars)
+
+def replace_tuples(target: str, replacements: List[Tuple[str, str]]) -> str:
+    """For each tuple (from, to) in replacements, replace all occurrences of from by to in target"""
+    return reduce(lambda s, repl: s.replace(repl[0], repl[1]), replacements, target)
 
 class DafnyEmitter(Emitter):
     def __init__(self, includes: List[str]=[]) -> None:
@@ -206,8 +228,6 @@ class DafnyEmitter(Emitter):
                 lemma_args = [(self.id.fresh("v"), "Value") for _ in common_methods[name].args]
                 arg_list = ", ".join("{}: Value".format(v) for v, _ in lemma_args)
                 bvs = arg_list
-                if arg_list != "":
-                    arg_list = ", " + arg_list
                 arg_bindings = list_to_dafny_list([v for v, _ in lemma_args])
                 # generate the lemma
                 tmpl = template.equivalence.get("method_proof")
@@ -224,24 +244,54 @@ class DafnyEmitter(Emitter):
 '''[1:-1]
                     argument_eqs.append(arg_assertion.format(arg_name=arg.name, lemma_arg=lemma_arg[0], fuel=i+1))
 
+
+                rec_lemmas = ["AssocGet_Cons<Addr, Object>();",
+                              "AssocGet_Cons<Var, Value>();",
+                              "AssocGet_Cons<Var, Method>();",
+                              "AssocGet_Cons<Addr, MethodList>();"]
+                rec_lemmas = "\n".join(["    " + rl for rl in rec_lemmas])
+
                 # TODO: factor out commonalities between the templates
                 if use_compiled:
+                    # If we have a precompiled context, we can also use a more precise
+                    # representation of the havoc'ed object list.
+                    # To avoid writing a parser for Dafny ASTs in python, this is implemented
+                    # as part of the Dafny backend:
+                    havoc_objs1, havoc_vars1 = compute_havoc_data("havocVar1_", lhs_compiled)
+                    havoc_objs2, havoc_vars2 = compute_havoc_data("havocVar2_", rhs_compiled)
+                    havoc_vars = list(map(lambda p: p[0], havoc_vars1 + havoc_vars2))
+                    havoc_formal_params = ", ".join(["{}: Value".format(v) for v in havoc_vars])
+                    logging.info("Havoc'd stuff (LHS):\n{}\n{}".format(havoc_objs1, havoc_vars1))
+                    logging.info("Havoc'd stuff (RHS):\n{}\n{}".format(havoc_objs2, havoc_vars2))
+                    if havoc_formal_params != "" and arg_list != "":
+                        arg_list = ", " + arg_list
                     text = tmpl_compiled.substitute(
                         proof=lemma_name, method=name, result1=lhs_compiled, result2=rhs_compiled,
                         cons_args=arg_bindings, args=arg_list, arg_count=len(lemma_args),
+                        havoc_vars=havoc_formal_params, havoc_objs1=havoc_objs1, havoc_objs2=havoc_objs2,
                         argument_equalities="\n".join(argument_eqs),
+                        rec_lemmas=rec_lemmas,
                         invariant=inv, body=prf.verbatim)
                 else:
                     text = tmpl.substitute(
                         proof=lemma_name, method=name, prefix=prefix, lhs=lhs, rhs=rhs, cons_args=arg_bindings,
                         args=arg_list, arg_count=len(lemma_args), argument_equalities="\n".join(argument_eqs),
-                        invariant=inv, body=prf.verbatim)
+                        rec_lemmas=rec_lemmas, invariant=inv, body=prf.verbatim)
                 self.emit_directly(text)
 
                 # generate the lemma invocation
                 use_tmpl = template.equivalence.get("lemma_use_noargs" if lemma_args == [] else "lemma_use_args")
                 args = ", ".join(["Nth(values, {})".format(i) for i in range(0, len(lemma_args))])
-                use_text = use_tmpl.substitute(proof=lemma_name, method=name, args=args)
+                if use_compiled:
+                    havoc_arg_values1 = list(map(lambda p: p[1].format(objs="objs1"), havoc_vars1))
+                    havoc_arg_values2 = list(map(lambda p: p[1].format(objs="objs2"), havoc_vars2))
+                    havoc_arg_values = ", ".join(havoc_arg_values1 + havoc_arg_values2)
+                    if havoc_arg_values != "" and args != "":
+                        args = ", " + args
+                else:
+                    havoc_arg_values = ""
+                use_text = use_tmpl.substitute(proof=lemma_name, method=name, args=args,
+                                               havoc_args=havoc_arg_values)
                 lemmas.append(use_text)
             lemmas.append(" {\n      }") # terminate dangling else at the end
         
@@ -250,9 +300,45 @@ class DafnyEmitter(Emitter):
         if use_compiled:
             logging.info("Using precompiled terms for {} and {}".format(prf.lhs, prf.rhs))
             tmpl = template.equivalence.get("equivalence_proof_compiled")
+            if havoc_formal_params != "":
+                havoc_formal_params = ", " + havoc_formal_params
+            # Assert that the havoc'd object list must have the shape we
+            # computed before:
+            havoc_eq_templ = "        // TODO: proof for this:" +\
+                "\n        assert {objs} == {objs_rhs} by {{assume false;}}"
+            # FIXME: This step is a bit too fragile and relies on the names of the havoc_vars not
+            # appearing anywhere else in the context (as part of the program); should come up
+            # with a more robust way of handling this.
+            havoc_rhs1_replaced = list(map(lambda p: (p[0], p[1].format(objs="objs1")), havoc_vars1))
+            havoc_rhs2_replaced = list(map(lambda p: (p[0], p[1].format(objs="objs2")), havoc_vars2))
+            havoc_rhs1 = replace_tuples(havoc_objs1, havoc_rhs1_replaced)
+            havoc_rhs2 = replace_tuples(havoc_objs2, havoc_rhs2_replaced)
+            # We need to assert that each of the variables actually exists in the havoced context:
+            havoc_somes = []
+            for havoc_rhs in havoc_rhs1_replaced + havoc_rhs2_replaced:
+                # FIXME: this is a horrible mess of regular expressions;
+                # writing a proper parser for Dafny expressions in Python would
+                # fix this (or port some of this stuff to a .NET language and
+                # reuse Dafny's internal data structures)
+                assert havoc_rhs[1].endswith(").val")
+                # First assert that address is valid:
+                assert havoc_rhs[1].startswith("AssocGet(AssocGet(")
+                r = re.compile(r'AssocGet\(objs(?P<obj_num>[12]), (?P<addr>[0-9]+)\)')
+                addr_expr = havoc_rhs[1][len("AssocGet("):]
+                match = r.search(addr_expr)
+                assert match is not None
+                addr_expr = match.group(0)
+                addr_proof = "HavocAddrSomeIff(ctx{obj_num}.objs, objs{obj_num}, {addr});".format(
+                    obj_num=match.group('obj_num'), addr=match.group('addr'))
+                havoc_somes.append("        assert {}.Some? by {{ {} }}".format(addr_expr, addr_proof))
+                havoc_somes.append("        assert {}.Some?;".format(havoc_rhs[1][:-4]))
+            havoc_rhs1 = havoc_eq_templ.format(objs="objs1", objs_rhs=havoc_rhs1)
+            havoc_rhs2 = havoc_eq_templ.format(objs="objs2", objs_rhs=havoc_rhs2)
+            havoc_eqs = "\n".join(havoc_somes + [havoc_rhs1, havoc_rhs2])
+#             havoc_eq1 = havoc_eq_templ.format(objs="objs1", objs_rhs
             text = tmpl.substitute(
                 proof=proof_name, result1=lhs_compiled, result2=rhs_compiled,
-                invariant=inv, body=body)
+                invariant=inv, body=body, havoc_eqs=havoc_eqs)
         else:
             tmpl = template.equivalence.get("equivalence_proof")
             text = tmpl.substitute(
@@ -378,3 +464,4 @@ class DafnyEmitter(Emitter):
             """var ret := Eval({}, ctx, FUEL).0;""".format(inv.expr.to_dafny()),
             """ret.Int?""")
         return self.end()
+
