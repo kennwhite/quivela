@@ -29,13 +29,14 @@ class DafnyRuntime(Runtime):
         super(DafnyRuntime, self).__init__()
         self.emitter = DafnyEmitter()
         self.prog = prog
+        self.evaluate = False
 
     def compile(self, evaluate=False) -> None:
         if evaluate:
             proofs = self.prog.generate_evaluate_obligations()
         else:
             proofs = self.prog.generate_proof_obligations()
-
+        self.evaluate = evaluate
         for p in proofs:
             self.emitter.emit_proof(p)
 
@@ -56,8 +57,10 @@ class DafnyRuntime(Runtime):
         binary = self._find_executable("dafny")
         stdout = None if verbose else subprocess.PIPE
         stderr = None if verbose else subprocess.PIPE
-        proc = subprocess.Popen(binary + " /compile:3 /induction:1 " + fname,
-                    stdout=stdout, stderr=stderr, shell=True, universal_newlines=True)
+        args = ["/compile:3" if self.evaluate else "/compile:0",
+                "/induction:1", fname]
+        proc = subprocess.Popen([binary] + args,
+                    stdout=stdout, stderr=stderr, universal_newlines=True)
 
         out, err = proc.communicate()
 
