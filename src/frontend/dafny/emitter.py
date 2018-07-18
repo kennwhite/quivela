@@ -220,11 +220,11 @@ class DafnyEmitter(Emitter):
                 # Emit lemmas stating that the compilation was performed correctly
                 correctness_tmpl = template.equivalence.get('compilation_correctness')
                 correctness_lemma1 = correctness_tmpl.substitute(
-                    name=self.id.fresh('compilation_correctness'),
+                    name=self.id.fresh('compilation_correctness_lhs'),
                     prefix=prefix, unevaled=lhs, compiled=lhs_compiled)
                 self.emit_directly(correctness_lemma1)
                 correctness_lemma2 = correctness_tmpl.substitute(
-                    name=self.id.fresh('compilation_correctness'),
+                    name=self.id.fresh('compilation_correctness_rhs'),
                     prefix=prefix, unevaled=rhs, compiled=rhs_compiled)
                 self.emit_directly(correctness_lemma2)
         else:
