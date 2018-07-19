@@ -18,7 +18,7 @@ from ..emitter import *
 from ..proof import *
 
 
-ROSETTE_INCLUDES = ["eval.rkt", "indistinguishable.rkt", "print.rkt"]
+ROSETTE_INCLUDES = ["eval.rkt", "indistinguishable.rkt", "print.rkt", "fuel.rkt"]
 ROSETTE_BACKEND_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../backend/rosette"))
 
 
@@ -108,6 +108,7 @@ class RosetteEmitter(Emitter):
             "(define {} {})".format(lhs, prf.lhs.to_sexp()),
             "(define {} {})".format(rhs, prf.rhs.to_sexp()),
             "(define invariants (list {}))".format(" ".join(i for i in invs)),
+            "(update-fuel {} {} {})".format(ctx, lhs, rhs),
             "(check-proof (Equivalent {} {} {} invariants))".format(ctx, lhs, rhs))
         self.end(True)
     

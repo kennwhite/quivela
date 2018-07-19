@@ -18,12 +18,12 @@
 
 (provide Equivalent ValidRewrite AdmitProof 
          DefaultInvariant EquivalenceInvariant OldNewInvariant 
-         check-proof check-assert FUEL HavocArg)
+         check-proof check-assert FUEL HavocArg set-fuel!)
 
 (current-bitwidth #f)
 
 
-(define FUEL 30)
+(define FUEL 50)
 
 
 (define (HavocArg var)
@@ -325,3 +325,6 @@
       (apply && (for/list ([k/v locals1])
                   (=> (not (false? (assoc-get (car k/v) locals2)))
                       (equal? (cdr k/v) (assoc-get (car k/v) locals2)))))))))
+
+(define (set-fuel! new-fuel)
+  (set! FUEL new-fuel))
