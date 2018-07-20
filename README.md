@@ -21,8 +21,9 @@ Check that you can run `racket -v` and `dafny`
 (`racket.exe -v` and `Dafny.exe`, respectively, on Windows)
 from the command line. On Windows, you might need to add these to your `PATH`.
 
-Install Rosette (`raco` is Racket's package manager):
+Install Rosette (`raco` is Racket's package manager) and Racket's graph library:
 
+    $ raco pkg install graph
     $ raco pkg install rosette
 
 Then from this repository's directory, run:
