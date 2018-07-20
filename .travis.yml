@@ -29,6 +29,7 @@ install:
   # Set PATH
   - export PATH="$PWD/dafny:$PWD/racket/bin:$PATH"
   # Install Rosette (but not its docs)
+  - raco pkg install --auto --no-setup graph
   - raco pkg install --auto --no-setup rosette
   - raco setup -Dl rosette
   # Install python dependencies
