@@ -89,7 +89,8 @@ predicate {:induction false} HavocPostcondition(
     var scope2 := BindArguments(GetMethod(ctx2', addr2.addr, m).args, values);
     var (retL, ctxL) := CallMethod(m, scope1, addr1.addr, ctx1');
     var (retR, ctxR) := CallMethod(m, scope2, addr2.addr, ctx2');
-    retL == retR && Inv(ctxL, ctxR, addr1.addr, addr2.addr)
+    retL == retR && Inv(ctxL, ctxR, addr1.addr, addr2.addr) &&
+    ctxL.adversaryHistory == ctxR.adversaryHistory
 }
 
 predicate {:induction false} Equivalent_Method(
