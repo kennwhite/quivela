@@ -1,6 +1,3 @@
-// Dafny backend doesn't support adversaries
-// SKIP: dafny
-
 // XFAIL: *
 
 x = adversary()
