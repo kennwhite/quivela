@@ -26,7 +26,7 @@ predicate ListAll<T>(pred: T -> bool, xs: List<T>) {
 }
 
 // FIXME: reduce duplication in the following few functions:
-predicate UnusedInList(name: Var, es: List<Expr>)
+predicate method UnusedInList(name: Var, es: List<Expr>)
   decreases es
 {
   match es
@@ -34,7 +34,7 @@ predicate UnusedInList(name: Var, es: List<Expr>)
     case Cons(e, es') => UnusedIn(name, e) && UnusedInList(name, es')
 }
 
-predicate UnusedInInits(name: Var, inits: List<Init>)
+predicate method UnusedInInits(name: Var, inits: List<Init>)
   decreases inits
 {
   match inits
@@ -45,8 +45,8 @@ predicate UnusedInInits(name: Var, inits: List<Init>)
 }
 
 /* This is a probably bit more conservative than necessary in that the new name
-   must also not be used as a method name, etc. */
-predicate UnusedIn(name: Var, e: Expr)
+   must also not be used as a  name, etc. */
+predicate method UnusedIn(name: Var, e: Expr)
   decreases e
 {
   match e
