@@ -134,7 +134,7 @@ function method Append<T>(a: List<T>, b: List<T>): List<T>
 }
 
 
-function Nth<T>(xs: List<T>, n: nat): T
+function method Nth<T>(xs: List<T>, n: nat): T
   decreases n
   requires n < Length(xs)
 {
