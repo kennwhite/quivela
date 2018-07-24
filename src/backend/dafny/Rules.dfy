@@ -536,142 +536,99 @@ lemma UnusedIn_Eval(e: Expr, ctx: Context, fuel: Fuel, x: Var, v: Value)
   case ENew(inits, newBody) => { assume false; }
 }
 
-lemma EquivalentAddNewField_MethodEqv(prefix: Expr, fields: List<Init>, body: Expr, newField: Init,
-  Inv:  ContextEquivalence, objs1: ObjList, objs2: ObjList, m: Var, values: List<Value>)
-  requires
-    var ctxp := Eval(prefix, EmptyContext(), FUEL).1;
-    var lhs := ENew(fields, body);
-    var rhs := ENew(Append(fields, Cons(newField, LNil)), body);
-    var (addr1, ctx1) := Eval(lhs, ctxp, FUEL);
-    var (addr2, ctx2) := Eval(rhs, ctxp, FUEL);
-    addr1.Ref? && addr2.Ref? &&
-    AssocGet(ctx1.methods, addr1.addr) == AssocGet(ctx2.methods, addr2.addr) &&
-    NoExternalEffects(newField.val) &&
-    UnusedIn(newField.name, body) &&
-    Equivalent_Method'(ctx1, ctx1, addr1, addr1, m, Inv) &&
-    MethodEquivalencePreqs(ctx1, ctx2, addr1, addr2, Inv, objs1, objs2, m, values)
-  ensures
-    var ctxp := Eval(prefix, EmptyContext(), FUEL).1;
-    var lhs := ENew(fields, body);
-    var rhs := ENew(Append(fields, Cons(newField, LNil)), body);
-    var (addr1, ctx1) := Eval(lhs, ctxp, FUEL);
-    var (addr2, ctx2) := Eval(rhs, ctxp, FUEL);
-    HavocPostcondition(m, values, ctx1, ctx2, addr1, addr2, Inv, objs1, objs2)
+predicate NoRawRefsList(es: List<Expr>)
 {
-  var ctxp := Eval(prefix, EmptyContext(), FUEL).1;
-  var lhs := ENew(fields, body);
-  var rhs := ENew(Append(fields, Cons(newField, LNil)), body);
-  var (addr1, ctx1) := Eval(lhs, ctxp, FUEL);
-  var (addr2, ctx2) := Eval(rhs, ctxp, FUEL);
-  var ctx1o := ctx1.(objs := objs1);
-  var ctx2o := ctx2.(objs := objs2);
-  var meth1 := GetMethod(ctx1o, addr1.addr, m);
-  var meth2 := GetMethod(ctx2o, addr2.addr, m);
-  var scope1 := BindArguments(meth1.args, values);
-  var scope2 := BindArguments(meth2.args, values);
-  assert meth1 == meth2;
-  var (retL, ctxL) := CallMethod(m, scope1, addr1.addr, ctx1o);
-  var (retR, ctxR) := CallMethod(m, scope2, addr2.addr, ctx2o);
-  // retL == retR && Inv(ctxL, ctxR, addr1.addr, addr2.addr)
-  assert Inv(ctx1, ctx2, addr1.addr, addr2.addr);
-  assert Inv(ctxL, ctxR, addr1.addr, addr2.addr) by {
-    assume false; // FIXME: we probably need to strengthen the assumptions on the invariant for this to work.
-  }
-  assert retL == retR by {
-    var locals1 := lhs.locals; var body := lhs.body;
-    var locals2 := rhs.locals;
-    var ret1 := InitLocals(lhs.locals, ctxp, FUEL-1, LNil);
-    var ret2 := InitLocals(rhs.locals, ctxp, FUEL-1, LNil);
-    assert ret2 == InitLocals(Cons(newField, LNil), ret1.car, FUEL-1, ret1.cdr) by {
-      InitLocalsAppend(fields, Cons(newField, LNil), ctxp, FUEL-1, LNil);
-    }
-    var ctx1' := ret1.car; var vlocals1 := ret1.cdr;
-    var oldThs1 := ctx1'.ths;
-    var ctx2' := ret2.car; var vlocals2 := ret2.cdr;
-    var oldThs2 := ctx2'.ths;
-    assert ctx2' == Eval(newField.val, ctx1', FUEL-1).1.(scope := ctx1'.scope) by { 
-      // We just evaluate one extra field initialization after the common fields
-      assume false; 
-    }
-    assert ExtendedContext(ctx1', ctx2');
-    assert ctx2.scope == ctx1.scope;
-    var oldScope1 := ctx1'.scope;
-    var oldScope2 := ctx2'.scope;
-    var addr1' := ctx1'.nextAddr;
-    var addr2' := ctx2'.nextAddr;
-    assert addr1 == Ref(addr1');
-    assert addr2 == Ref(addr2');
-    var immuts2 := Find_Immutables(rhs.locals);
-    var immuts1 := Find_Immutables(lhs.locals);
-    var ctx1'' := ctx1'.(objs := AssocSet(ctx1'.objs, addr1', Object(vlocals1, immuts1)),
-                         methods := AssocSet(ctx1'.methods, addr1', LNil), 
-                         nextAddr := ctx1'.nextAddr + 1, 
-                         ths := addr1');
-    var ctx2'' := ctx2'.(objs := AssocSet(ctx2'.objs, addr2', Object(vlocals2, immuts2)),
-                         methods := AssocSet(ctx2'.methods, addr2', LNil), 
-                         nextAddr := ctx2'.nextAddr + 1, 
-                         ths := addr2');
-    var (ret1', ctx1''') := Eval(lhs.body, ctx1'', FUEL-1);
-    var (ret2', ctx2''') := Eval(rhs.body, ctx2'', FUEL-1);
-    assert ctx1 == ctx1'''.(ths := oldThs1, scope := oldScope1);
-    assert ctx2 == ctx2'''.(ths := oldThs2, scope := oldScope2);
-    //assert ExtendedContext(ctx1, ctx2);
-
-    assert ExtendedContext(ctx1'', ctx2'') by { 
-      assume false;
-    }
-    if (ret1' == Error()) {
-      assume false;
-    } else {
-      assert ValidContext(ctx1'') && ValidContext(ctx2'') by {assume false;}
-      assert lhs.body == rhs.body;
-      assert ret1' == ret2' by { EvalExtend(ctx1'', ctx2'', lhs.body, FUEL-1, ret1'); }
-
-      assume false;
-    }
-    
-    // result: (Ref(addr), ctx'''.(ths := oldThs, scope := oldScope))
-    assume false; // FIXME
-  }
+  match es
+    case LNil => true
+    case Cons(e, es') => NoRawRefs(e) && NoRawRefsList(es')
 }
 
+predicate NoRawRefsInits(inits: List<Init>)
+{
+  match inits
+    case LNil => true
+    case Cons(init, inits') => NoRawRefs(init.val) && NoRawRefsInits(inits')
+}
+
+
+predicate NoRawRefs(e: Expr)
+{
+  match e
+    case EVar(x) => true
+    case EConst(v) => !v.Ref?
+    case ETuple(es) => NoRawRefsList(es)
+    case ENop() => true
+    case ESeq(e1, e2) => NoRawRefs(e1) && NoRawRefs(e2)
+    case ECVar(obj, n, idx) => NoRawRefs(obj) && NoRawRefs(idx)
+    case EMethod(methName, args, methBody) => NoRawRefs(methBody)
+    case ECall(cobj, cname, cargs) => NoRawRefs(cobj) && NoRawRefsList(cargs)
+    case EITE(cond, thn, els) => NoRawRefs(cond) && NoRawRefs(thn) && NoRawRefs(els)
+    case EAssign(lhs, rhs) => NoRawRefs(lhs) && NoRawRefs(rhs)
+    case ENew(inits, newBody) => NoRawRefs(newBody)
+}
+
+
+lemma EVar_NoExternalEffects(x: Var)
+  ensures NoExternalEffects(EVar(x))
+{
+  assume false;
+}
+
+lemma EConst_NoExternalEffects(v: Value)
+  ensures NoExternalEffects(EConst(v))
+{
+  assume false;
+}
+
+predicate OnlyMethodDefinitions(e: Expr)
+{
+  if e.EMethod? then true
+  else if e.ESeq? then OnlyMethodDefinitions(e.e1) && OnlyMethodDefinitions(e.e2)
+  else false
+}
+
+lemma ENew_NoExternalEffects(locs: List<Init>, body: Expr)
+  requires ListAll((loc: Init) => NoExternalEffects(loc.val), locs)
+  requires OnlyMethodDefinitions(body)
+  ensures NoExternalEffects(ENew(locs, body))
+{
+  assume false;
+}
+
+function method InsertAt<T>(x: T, n: nat, xs: List<T>): List<T>
+  requires n <= Length(xs)
+  decreases n
+{
+  if n == 0 then Cons(x, xs)
+  else Cons(xs.car, InsertAt(x, n-1, xs.cdr))
+}
+
+lemma EquivalentSymmetric(lhs: Expr, rhs: Expr, ctxp: Context, Inv: ContextEquivalence)
+  requires Equivalent(lhs, rhs, ctxp, Inv)
+  ensures Equivalent(rhs, lhs, ctxp, Inv)
+{ assume false; }
+
+// TODO: The thing that is missing here to make this provable is probably
+// to require that Inv is strong enough to imply reflexivity of lhs.
+// TODO: Missing check: new name also does not occur free in local initializations
+// that follow it.
 lemma EquivalentAddNewField(prefix: Expr, fields: List<Init>, body: Expr, newField: Init,
-  Inv: ContextEquivalence)
+  Inv: ContextEquivalence, n: nat)
   requires
     var ctxp := Eval(prefix, EmptyContext(), FUEL).1;
     var lhs := ENew(fields, body);
     var rhs := ENew(Append(fields, Cons(newField, LNil)), body);
     var (addr1, ctx1) := Eval(lhs, ctxp, FUEL);
     var (addr2, ctx2) := Eval(rhs, ctxp, FUEL);
+    n <= Length(fields) &&
     AssocGet(ctx1.methods, addr1.addr) == AssocGet(ctx2.methods, addr2.addr) &&
     NoExternalEffects(newField.val) &&
-    Inv(ctx1, ctx2, addr1.addr, addr2.addr) &&
-    Equivalent_AllMethods(ctx1, ctx1, addr1, addr1, Inv) &&
     UnusedIn(newField.name, body)
   ensures
     var ctxp := Eval(prefix, EmptyContext(), FUEL).1;
     var lhs := ENew(fields, body);
-    var rhs := ENew(Append(fields, Cons(newField, LNil)), body);
+    var rhs := ENew(InsertAt(newField, n, fields), body);
     Equivalent(lhs, rhs, ctxp, Inv)
 {
-  var ctxp := Eval(prefix, EmptyContext(), FUEL).1;
-  var lhs := ENew(fields, body);
-  var rhs := ENew(Append(fields, Cons(newField, LNil)), body);
-  var (addr1, ctx1) := Eval(lhs, ctxp, FUEL);
-  var (addr2, ctx2) := Eval(rhs, ctxp, FUEL);
-  assert Equivalent_AllMethods(ctx1, ctx2, addr1, addr2, Inv) by {
-    assert addr1.Ref? && addr2.Ref?;
-    assert ValidRef(addr1.addr, ctx1) && ValidRef(addr2.addr, ctx2) by {
-      ENewReturnsValidRef(ctxp, fields, body);
-      ENewReturnsValidRef(ctxp, Append(fields, Cons(newField, LNil)), body);
-    }
-    forall (m: Var, values: List<Value>, objs1: ObjList, objs2: ObjList |
-      MethodEquivalencePreqs(ctx1, ctx2, addr1, addr2, Inv, objs1, objs2, m, values))
-      ensures HavocPostcondition(m, values, ctx1, ctx2, addr1, addr2, Inv, objs1, objs2) {
-        assert Equivalent_Method'(ctx1, ctx1, addr1, addr1, m, Inv) by {
-        }
-        EquivalentAddNewField_MethodEqv(prefix, fields, body, newField, Inv, objs1, objs2, m, values);
-      }
-    assert Inv(ctx1, ctx2, addr1.addr, addr2.addr);
-  }
+  assume false;
 }
