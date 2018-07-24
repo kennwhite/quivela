@@ -60,7 +60,11 @@ predicate method UnusedIn(name: Var, e: Expr)
     case EConst(val) => true
     case ETuple(vals) => UnusedInList(name, vals)
     case ESeq(e1, e2) => UnusedIn(name, e1) && UnusedIn(name, e2)
-    case ECVar (obj, name', idx) => UnusedIn(name, obj) && UnusedIn(name, idx) && name' != name
+    case ECVar (obj, name', idx) =>
+      UnusedIn(name, obj) && UnusedIn(name, idx) &&
+      // We'll need to refine the following, since it's only sound if the object doesn't
+      // obtain a reference to itself in another variable
+      (obj != EConst(Nil) || name' != name)
     case EMethod(name', args, body) => !InList(args, name) && name' != name && UnusedIn(name, body)
 }
 
