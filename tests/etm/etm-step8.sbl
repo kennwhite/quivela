@@ -1,0 +1,115 @@
+// _m is unforgable iff _m ~ MacI(_m)
+
+MacI(mac) {
+    new (mac,tg=0) {
+        tag(m) { tg[m] = mac.tag(m) }
+        verify(m,t) { t & tg[m] == t }
+    }
+}
+
+
+// _e freshly encrypts iff _e ~ Enc(_e)
+
+Enc(e) {
+    new (e, d=0) {
+        enc(m) { c = e.enc(m) & !d[c] & d[c] = m & c }
+        dec(c) { e.dec(c) }
+    }
+}
+
+
+// _e is a CPA-secure encryptor iff CpaC(_e) ~ CpaI(_e)
+
+CpaC(e) {
+    new (e,h=0) {
+        enc(m) { c = e.enc(m) & h[c]=1 & c }
+        dec(c) { h[c] & e.dec(c) }
+    }
+}
+
+CpaI(e) {
+    new (e,d=0) {
+        enc(m) { c = e.enc(zero(m)) & d[c] = m & c }
+        dec(c) { d[c] }
+    }
+}
+
+
+// _e is an AEAD encryptor iff _e ~ AeadI(_e)
+
+AeadI(e) {
+    new (e,d=0) {
+        enc(a,m) { c = e.enc(a,zero(m)) & d[<a,c>] = m & c }
+        dec(a,c) { d[<a,c>] }
+    }
+}
+
+
+// concrete encrypt-then-mac
+
+EtM(e,mac) {
+    new (e,mac) {
+        enc(a,m) {
+            m &
+            em = e.enc(m) &
+            t = mac.tag(<a,em>) &
+            <em,t>
+        }
+        dec(a,c) {
+            em = c.get[0]
+            t = c.get[1]
+            c &
+            mac.verify(<a,em>,t) &
+            e.dec(em)
+        }
+    }
+}
+
+
+// zero a bit-string (`& 0` ensures zero-length strings remain zero-length)
+zero(m) { m & 0 }
+
+
+
+// the encryptor and MAC are adversarial (e.g., could be remote)
+_e = adversary()
+_mac = adversary()
+
+
+// assuming _e freshly encrypts...
+assume _e ~ Enc(_e)
+// and _e is a CPA-secure encryptor...
+assume CpaC(_e) ~ CpaI(_e)
+// and _mac is an unforgable MAC...
+assume _mac ~ MacI(_mac)
+new (e=_e,mac=MacI(_mac),cpa=CpaC(_e)) {
+    enc(a,m) { 
+        m &
+        em = cpa.enc(m) &
+        t = mac.tag(<a,em>) &
+        <em,t> 
+    }
+    dec(a,c) { 
+        em = c.get[0]
+        t = c.get[1]
+        c &
+        mac.verify(<a,em>,t) &
+        cpa.dec(em)
+    }
+}
+~ [Equal(_lhs.cpa.e, _rhs.cpa.e) & Equal(_lhs.cpa.h, _rhs.cpa.h) & Equal(_lhs.mac, _rhs.mac) & Equal(_lhs.mac.tg, _rhs.mac.tg) & Equal(_lhs.mac.mac, _rhs.mac.mac) & Equal(_lhs.cpa, _rhs.cpa) & Equal(_lhs.cpa.e, _rhs.cpa.e) & Equal(_lhs.cpa.h, _rhs.cpa.h)] // e appears only in CpaC(e)
+new (mac=MacI(_mac),cpa=CpaC(_e)) {
+    enc(a,m) { 
+        m &
+        em = cpa.enc(m) &
+        t = mac.tag(<a,em>) &
+        <em,t> 
+    }
+    dec(a,c) { 
+        em = c.get[0]
+        t = c.get[1]
+        c &
+        mac.verify(<a,em>,t) &
+        cpa.dec(em)
+    }
+}
