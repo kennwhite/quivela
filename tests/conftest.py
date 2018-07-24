@@ -14,6 +14,7 @@
 
 import os
 import re
+import subprocess
 import sys
 
 import pytest
@@ -34,9 +35,16 @@ def pytest_collect_file(parent, path):
         dirname = os.path.basename(path.dirname)
         if dirname == "eval":
             return UCEvalFile(path, parent)
-        else:
+        elif dirname == "proofs":
             return UCProofFile(path, parent)
-
+    elif path.ext == ".dfy":
+        dirname = os.path.basename(path.dirname)
+        print(path.basename)
+        if dirname == "etm":
+            if "eval" not in path.basename:
+                return DafnyVerifyFile(path, parent)
+            else:
+                return DafnyEvalFile(path, parent)
 
 # which backend to use
 def pytest_addoption(parser):
@@ -108,3 +116,53 @@ class UCEval(UCItem):
             assert ret
     def reportinfo(self):
         return self.fspath, 0, "eval: %s" % self.path
+
+# TODO: remove duplication and boilerplate:
+class DafnyVerifyFile(pytest.File):
+    def collect(self):
+        with self.fspath.open() as f:
+            yield DafnyVerifyItem("dafny", self.name, self, f.read())
+
+class DafnyEvalFile(pytest.File):
+    def collect(self):
+        with self.fspath.open() as f:
+            yield DafnyEvalItem("dafny", self.name, self, f.read())
+
+class DafnyEvalItem(pytest.Item):
+    def __init__(self, name, path, parent, code):
+        super(DafnyEvalItem, self).__init__(name, parent)
+        self.path = path
+        self.parent = parent
+        self.code = code
+
+    def runtest(self):
+        proc = subprocess.run(["dafny", "/compile:3", self.path],
+                              stdout=subprocess.PIPE)
+        assert "False" not in proc.stdout.decode('utf-8')
+
+    def _is_me(self, typ):
+        if typ == "*":
+            return True
+        return False
+
+    def reportinfo(self):
+        return self.fspath, 0, "dafny-eval: %s" % self.path
+
+class DafnyVerifyItem(pytest.Item):
+    def __init__(self, name, path, parent, code):
+        super(DafnyVerifyItem, self).__init__(name, parent)
+        self.path = path
+        self.parent = parent
+        self.code = code
+
+    def runtest(self):
+        proc = subprocess.run(["dafny", "/compile:0", self.path])
+        assert proc.returncode == 0
+
+    def _is_me(self, typ):
+        if typ == "*":
+            return True
+        return False
+
+    def reportinfo(self):
+        return self.fspath, 0, "dafny-verify: %s" % self.path
