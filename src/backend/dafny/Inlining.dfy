@@ -235,16 +235,23 @@ function method FreeVars(e: Expr): set<Var>
   FreeVars'(e, {})
 }
 
+function method GlobalVars(e: Expr): set<Var>
+{
+  if e.EAssign? && e.lhs.EVar? then {e.lhs.name}
+  else if e.ESeq? then GlobalVars(e.e1) + GlobalVars(e.e2)
+  else {}
+}
+
 lemma InlineMethodEquivalent(prefix: Expr, lhs: Expr, Inv: ContextEquivalence,
   call: MethodCall)
   requires
   var mtd := FindCalledMethod(call, ESeq(prefix, lhs));
     mtd.Some? &&
-    FreeVars(mtd.val.body) * FreeVars(lhs) == {}
-    // ^ I think this is not completely sufficient, since we could have a
-    // variable that's free in the method body, but bound by a surrounding
-    // construct; in that case we need to make sure it's also bound to the same
-    // value at each call site.
+    FreeVars(mtd.val) * FreeVars(lhs) == {} &&
+    FreeVars(mtd.val) <= GlobalVars(prefix)
+    // This is more restrictive than it could be, since free variables
+    // in the function could also be bound to the same object as in each
+    // call site, but that'd be much trickier to check.
   ensures
   var ctxp := Eval(prefix, EmptyContext(), FUEL).1;
   var rhs := InlineMethod(lhs, call, FindCalledMethod(call, ESeq(prefix, lhs)).val);
