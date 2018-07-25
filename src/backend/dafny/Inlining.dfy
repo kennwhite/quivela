@@ -180,10 +180,70 @@ function method FindCalledMethod(call: MethodCall, prog: Expr): Option<Expr>
        case None => FindCalledMethod(call, prog.e2))
 }
 
+function method MapList<S, T>(f: S -> T, xs: List<S>): List<T>
+{
+  match xs
+    case LNil => LNil
+    case Cons(x, xs') => Cons(f(x), MapList(f, xs'))
+}
+
+function method Fold<S, T>(op: (S, T) -> T, init: T, xs: List<S>): T
+{
+  match xs
+    case LNil => init
+    case Cons(x, xs') => op(x, Fold(op, init, xs'))
+}
+
+function method FreeVarsInList(es: List<Expr>, bound: set<Var>): set<Var>
+{
+  match es
+    case LNil => {}
+    case Cons(e, es') => FreeVars'(e, bound) + FreeVarsInList(es', bound)
+}
+
+function method FreeVarsInLocs(locs: List<Init>, bound: set<Var>): set<Var>
+{
+  match locs
+    case LNil => {}
+    case Cons(loc, locs') =>
+      FreeVars'(loc.val, bound + {loc.name}) +
+      FreeVarsInLocs(locs', bound + {loc.name})
+}
+
+function method FreeVars'(e: Expr, bound: set<Var>): set<Var>
+{
+  match e
+    case EVar(x) => if x in bound then {} else {x}
+    case ETuple(vals) => FreeVarsInList(vals, bound)
+    case ENop => {}
+    case EConst(v) => {}
+    case EITE(cnd, thn, els) => FreeVars'(cnd, bound) + FreeVars'(thn, bound) + FreeVars'(els, bound)
+    case ESeq(e1, e2) => FreeVars'(e1, bound) + FreeVars'(e2, bound)
+    case EMethod(name, args, body) =>
+      FreeVars'(body, bound + Fold((x: Var, xs: set<Var>) => {x} + xs, {}, args))
+    case ECall(obj, name, args) => FreeVars'(obj, bound) + FreeVarsInList(args, bound)
+    case ENew(locals, body) =>
+      var localVars := FreeVarsInLocs(locals, bound);
+      var boundLocs := Fold((loc: Init, fvs: set<Var>) => {loc.name} + fvs, {}, locals);
+      localVars + FreeVars'(body, bound + boundLocs)
+    case EAssign(lhs, rhs) => FreeVars'(lhs, bound) + FreeVars'(rhs, bound)
+    case ECVar(obj, name, idx) => FreeVars'(obj, bound) + FreeVars'(idx, bound)
+}
+
+function method FreeVars(e: Expr): set<Var>
+{
+  FreeVars'(e, {})
+}
+
 lemma InlineMethodEquivalent(prefix: Expr, lhs: Expr, Inv: ContextEquivalence,
   call: MethodCall)
   requires
-  FindCalledMethod(call, ESeq(prefix, lhs)).Some?
+  var mtd := FindCalledMethod(call, ESeq(prefix, lhs));
+    mtd.Some? &&
+    FreeVars(mtd.val.body) * FreeVars(lhs) == {}
+    // ^ this condition is a bit too strong for some of the steps in the ETM proof,
+    // where there is a free variable captured by the inlining but it happens to have
+    // the same value.
   ensures
   var ctxp := Eval(prefix, EmptyContext(), FUEL).1;
   var rhs := InlineMethod(lhs, call, FindCalledMethod(call, ESeq(prefix, lhs)).val);
