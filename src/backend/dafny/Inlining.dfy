@@ -9,11 +9,85 @@ of the surrounding New().
 
 datatype MethodCall = GlobalMethod(mtdName: Var) | FieldMethod(fieldName: Var, methodName: Var)
 
+function method Find<T>(pred: T -> bool, xs: List<T>): Option<T>
+  decreases xs
+  ensures var res := Find(pred, xs);
+  if res.Some? then pred(res.val) else ListAll((x : T) => !pred(x), xs)
+{
+  match xs
+    case LNil => None
+    case Cons(x, xs') => if pred(x) then Some(x) else Find(pred, xs')
+}
+
+function method SubstVarInList(x: Var, substBy: Expr, es: List<Expr>): List<Expr>
+  decreases es
+{
+  match es
+    case LNil => LNil
+    case Cons(e, es') => Cons(SubstVar(x, substBy, e), SubstVarInList(x, substBy, es'))
+}
+
+function method SubstInLocs(x: Var, substBy: Expr, locs: List<Init>): List<Init>
+  decreases locs
+{
+  match locs
+    case LNil => LNil
+    case Cons(loc, locs') =>
+      if loc.name == x then Cons(loc, locs')
+      else Cons(loc.(val := SubstVar(x, substBy, loc.val)), SubstInLocs(x, substBy, locs'))
+}
+
+function method SubstVar(x: Var, substBy: Expr, e: Expr): Expr
+  decreases e
+{
+  match e
+    case EVar(y) => if x == y then substBy else e
+    case EConst(v) => e
+    case ETuple(vals) => ETuple(SubstVarInList(x, substBy, vals))
+    case EMethod(name, args, body) => if Find((arg: Var) => arg == x, args).Some? then e else SubstVar(x, substBy, body)
+    case ENop() => e
+    case EITE(cnd, thn, els) => EITE(SubstVar(x, substBy, cnd), SubstVar(x, substBy, thn), SubstVar(x, substBy, thn))
+    case ECall(obj, name, args) =>
+      ECall(SubstVar(x, substBy, obj), name, SubstVarInList(x, substBy, args))
+    case ENew(locs, body) =>
+      var locs' := SubstInLocs(x, substBy, locs);
+      var body' := if Find((loc: Init) => loc.name == x, locs).Some? then body else SubstVar(x, substBy, body);
+      ENew(locs', body')
+    case EAssign(lhs, rhs) => EAssign(SubstVar(x, substBy, lhs), SubstVar(x, substBy, rhs))
+    case ECVar(obj, name, idx) => ECVar(SubstVar(x, substBy, obj), name, SubstVar(x, substBy, idx))
+    case ESeq(e1, e2) => ESeq(SubstVar(x, substBy, e1), SubstVar(x, substBy, e2))
+}
+
+function method SubstList(substs: List<(Var, Expr)>, e: Expr): Expr
+{
+  match substs
+    case LNil => e
+    case Cons((x, subst), substs') => SubstList(substs', SubstVar(x, subst, e))
+}
+
+function method Min(n: nat, m: nat): nat
+  ensures Min(n, m) <= n && Min(n, m) <= m && (Min(n, m) == n || Min(n, m) == m)
+{
+  if (n <= m) then n else m
+}
+
+function method Zip<T, S>(xs: List<T>, ys: List<S>): List<(T, S)>
+  ensures Length(Zip(xs, ys)) == Min(Length(xs), Length(ys))
+{
+  match xs
+    case LNil => LNil
+    case Cons(x, xs') =>
+      (match ys
+         case LNil => LNil
+         case Cons(y, ys') => Cons((x, y), Zip(xs', ys')))
+}
+
+
 // TODO
 function method SubstArgs(mtd: Expr, args: List<Expr>): Expr
-  requires mtd.EMethod?
+  requires mtd.EMethod? // && Length(mtd.args) == Length(args)
 {
-  mtd
+  SubstList(Zip(mtd.args, args), mtd.body)
 }
 
 function method InlineInList(es: List<Expr>, call: MethodCall, mtd: Expr): List<Expr>
