@@ -608,6 +608,11 @@ lemma EquivalentSymmetric(lhs: Expr, rhs: Expr, ctxp: Context, Inv: ContextEquiv
   ensures Equivalent(rhs, lhs, ctxp, Inv)
 { assume false; }
 
+lemma EquivalentTransitive(x: Expr, y: Expr, z: Expr, ctxp: Context, Inv: ContextEquivalence)
+  requires Equivalent(x, y, ctxp, Inv) && Equivalent(y, z, ctxp, Inv)
+  ensures Equivalent(x, z, ctxp, Inv)
+{ assume false; }
+
 // TODO: The thing that is missing here to make this provable is probably
 // to require that Inv is strong enough to imply reflexivity of lhs.
 // TODO: Missing check: new name also does not occur free in local initializations
