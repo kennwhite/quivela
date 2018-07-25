@@ -160,7 +160,7 @@ function method FindInInits(fieldName: Var, mtdName: Var, locs: List<Init>): Opt
   match locs
     case LNil => None
     case Cons(init, inits') =>
-      if init.name == fieldName && init.val.ENew?
+      if init.name == fieldName && init.val.ENew? && init.immutable
       then FindMethodByName(mtdName, init.val.body)
       else FindInInits(fieldName, mtdName, inits')
 }
