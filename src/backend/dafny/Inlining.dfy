@@ -241,9 +241,10 @@ lemma InlineMethodEquivalent(prefix: Expr, lhs: Expr, Inv: ContextEquivalence,
   var mtd := FindCalledMethod(call, ESeq(prefix, lhs));
     mtd.Some? &&
     FreeVars(mtd.val.body) * FreeVars(lhs) == {}
-    // ^ this condition is a bit too strong for some of the steps in the ETM proof,
-    // where there is a free variable captured by the inlining but it happens to have
-    // the same value.
+    // ^ I think this is not completely sufficient, since we could have a
+    // variable that's free in the method body, but bound by a surrounding
+    // construct; in that case we need to make sure it's also bound to the same
+    // value at each call site.
   ensures
   var ctxp := Eval(prefix, EmptyContext(), FUEL).1;
   var rhs := InlineMethod(lhs, call, FindCalledMethod(call, ESeq(prefix, lhs)).val);
