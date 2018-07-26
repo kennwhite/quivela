@@ -33,8 +33,10 @@ function method SubstInLocs(x: Var, substBy: Expr, locs: List<Init>): List<Init>
   match locs
     case LNil => LNil
     case Cons(loc, locs') =>
-      if loc.name == x then Cons(loc, locs')
-      else Cons(loc.(val := SubstVar(x, substBy, loc.val)), SubstInLocs(x, substBy, locs'))
+      if loc.name == x then
+      (if loc.val == EConst(Nil) then Cons(loc.(val := substBy), locs') else Cons(loc, locs'))
+      else
+        Cons(loc.(val := SubstVar(x, substBy, loc.val)), SubstInLocs(x, substBy, locs'))
 }
 
 function method SubstVar(x: Var, substBy: Expr, e: Expr): Expr
