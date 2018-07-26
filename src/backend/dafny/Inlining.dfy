@@ -83,10 +83,12 @@ function method Zip<T, S>(xs: List<T>, ys: List<S>): List<(T, S)>
 }
 
 
-// TODO
 function method SubstArgs(mtd: Expr, args: List<Expr>): Expr
-  requires mtd.EMethod? // && Length(mtd.args) == Length(args)
+  requires mtd.EMethod?
 {
+  // This is not exactly what we want yet, since we should introduce fresh
+  // variables to bind the argument expressions to in order to avoid executing
+  // arguments with side effects (or depending on shared state) multiple times
   SubstList(Zip(mtd.args, args), mtd.body)
 }
 
@@ -247,11 +249,10 @@ lemma InlineMethodEquivalent(prefix: Expr, lhs: Expr, Inv: ContextEquivalence,
   requires
   var mtd := FindCalledMethod(call, ESeq(prefix, lhs));
     mtd.Some? &&
-    FreeVars(mtd.val) * FreeVars(lhs) == {} &&
-    FreeVars(mtd.val) <= GlobalVars(prefix)
-    // This is more restrictive than it could be, since free variables
-    // in the function could also be bound to the same object as in each
-    // call site, but that'd be much trickier to check.
+    FreeVars(mtd.val) * FreeVars(lhs) == {}
+    // There's a few missing side conditions here, such as all free variables
+    // in the function body have to be bound by the surrounding context to the
+    // same object as at each call site.
   ensures
   var ctxp := Eval(prefix, EmptyContext(), FUEL).1;
   var rhs := InlineMethod(lhs, call, FindCalledMethod(call, ESeq(prefix, lhs)).val);
