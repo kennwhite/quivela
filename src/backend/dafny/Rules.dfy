@@ -637,3 +637,60 @@ lemma EquivalentAddNewField(prefix: Expr, fields: List<Init>, body: Expr, newFie
 {
   assume false;
 }
+
+// To make use of the fact that Equivalent (hopefully) is a congruence, we
+// introduce expressions with one hole somewhere. Then if two expressions are
+// equivalent, plugging them into the same ExprCtx should yield equivalent
+// expressions again.
+datatype InitCtx = InitCtx(name: Var, val: ExprCtx, immutable: bool)
+datatype ExprCtx = Hole
+  | CTuple(vals1: List<Expr>, ectx: ExprCtx, vals2: List<Expr>)
+  | CSeq1(c1: ExprCtx, e2: Expr)
+  | CSeq2(e1: Expr, c2: ExprCtx)
+  | CCVar1(ecobj: ExprCtx, name: Var, idx: Expr)
+  | CCVar2(obj: Expr, name: Var, cidx: ExprCtx)
+  | CNew1(locals1: List<Init>, ictx: InitCtx, locals2: List<Init>, body: Expr)
+  | CNew2(locals: List<Init>, cbody: ExprCtx)
+  | CMethod(name: Var, args: List<Var>, cbody: ExprCtx)
+  | CAssign1(clhs: ExprCtx, rhs: Expr)
+  | CAssign2(lhs: Expr, crhs: ExprCtx)
+  | CCall1(ecobj: ExprCtx, cname: Var, cargs: List<Expr>)
+  | CCall2(cobj: Expr, cname: Var, cargs1: List<Expr>, ectx: ExprCtx, cargs2: List<Expr>)
+  | CITE1(ccond: ExprCtx, thn: Expr, els: Expr)
+  | CITE2(cond: Expr, cthn: ExprCtx, els: Expr)
+  | CITE3(cond: Expr, thn: Expr, cels: ExprCtx)
+
+function method SubstHoleInit(ictx: InitCtx, e: Expr): Init
+{
+  Init(ictx.name, SubstHole(ictx.val, e), ictx.immutable)
+}
+
+function method SubstHole(ectx: ExprCtx, e: Expr): Expr
+{
+  match ectx
+    case Hole => e
+    case CTuple(vals1, ectx', vals2) => ETuple(Append(vals1, Cons(SubstHole(ectx', e), vals2)))
+    case CSeq1(c1, e2) => ESeq(SubstHole(c1, e), e2)
+    case CSeq2(e1, c2) => ESeq(e1, SubstHole(c2, e))
+    case CCVar1(ecobj, name, idx) => ECVar(SubstHole(ecobj, e), name, idx)
+    case CCVar2(obj, name, cidx) => ECVar(obj, name, SubstHole(cidx, e))
+    case CNew1(locals1, ictx, locals2, body) =>
+      ENew(Append(locals1, Cons(SubstHoleInit(ictx, e), locals2)), body)
+    case CNew2(locals, cbody) => ENew(locals, SubstHole(cbody, e))
+    case CMethod(name, args, cbody) => EMethod(name, args, SubstHole(cbody, e))
+    case CAssign1(clhs, rhs) => EAssign(SubstHole(clhs, e), rhs)
+    case CAssign2(lhs, crhs) => EAssign(lhs, SubstHole(crhs, e))
+    case CCall1(ecobj, cname, cargs) => ECall(SubstHole(ecobj, e), cname, cargs)
+    case CCall2(cobj, cname, cargs1, ectx, cargs2) =>
+      ECall(cobj, cname, Append(cargs1, Cons(SubstHole(ectx, e), cargs2)))
+    case CITE1(ccond, thn, els) => EITE(SubstHole(ccond, e), thn, els)
+    case CITE2(cond, cthn, els) => EITE(cond, SubstHole(cthn, e), els)
+    case CITE3(cond, thn, cels) => EITE(cond, thn, SubstHole(cels, e))
+}
+
+/* Currently our definition of Equivalent only works for expressions returning references,
+   so we may need to extend it to other types of expressions as well. */
+lemma EquivalentCongruence(ctxp: Context, lhs: Expr, rhs: Expr, ectx: ExprCtx, Inv: ContextEquivalence)
+  requires Equivalent(lhs, rhs, ctxp, Inv)
+  ensures Equivalent(SubstHole(ectx, lhs), SubstHole(ectx, rhs), ctxp, Inv)
+{ assume false; }
